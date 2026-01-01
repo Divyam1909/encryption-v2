@@ -1,0 +1,28 @@
+# Multi-Agent Homomorphic Encryption IoT System
+# Core FHE Library
+tenseal>=0.3.14
+
+# Web Server
+fastapi>=0.104.0
+uvicorn[standard]>=0.24.0
+websockets>=12.0
+python-multipart>=0.0.6
+
+# HTTP Client (for ESP32 simulator)
+httpx>=0.25.0
+aiohttp>=3.9.0
+
+# Data Processing
+numpy>=1.24.0
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.5.0
+cryptography>=41.0.0
+
+# QR Code generation
+qrcode[pil]>=7.4.0
+
+# Testing
+pytest>=7.4.0
+pytest-asyncio>=0.21.0

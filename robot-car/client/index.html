@@ -1,0 +1,713 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>🚗 FHE Robot Car - Encrypted Sensor System</title>
+    <meta name="description" content="Interactive robot car with encrypted sensor data using FHE">
+
+    <!-- Fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+        rel="stylesheet">
+
+    <style>
+        :root {
+            --primary: #3b82f6;
+            --accent: #10b981;
+            --danger: #ef4444;
+            --warning: #f59e0b;
+            --bg-dark: #0f172a;
+            --bg-card: #1e293b;
+            --bg-input: #0f172a;
+            --text: #f1f5f9;
+            --text-muted: #94a3b8;
+            --border: #334155;
+            --radius: 12px;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg-dark);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* Header */
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 0.75rem 1rem;
+            background: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 1rem;
+            font-weight: 700;
+        }
+
+        .status-pills {
+            display: flex;
+            gap: 0.5rem;
+        }
+
+        .pill {
+            display: flex;
+            align-items: center;
+            gap: 0.35rem;
+            padding: 0.35rem 0.75rem;
+            background: var(--bg-dark);
+            border-radius: 20px;
+            font-size: 0.75rem;
+        }
+
+        .pill .dot {
+            width: 6px;
+            height: 6px;
+            border-radius: 50%;
+            background: var(--warning);
+        }
+
+        .pill .dot.connected {
+            background: var(--accent);
+            box-shadow: 0 0 8px var(--accent);
+        }
+
+        .trust-badge {
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .trust-badge.trusted {
+            background: rgba(16, 185, 129, 0.2);
+            border: 1px solid var(--accent);
+        }
+
+        /* Main Layout */
+        .main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+            padding: 1rem;
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        /* Simulation Canvas */
+        .sim-container {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            position: relative;
+            height: 50vh;
+            min-height: 300px;
+            overflow: hidden;
+        }
+
+        #gameCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .controls-hint {
+            position: absolute;
+            bottom: 0.5rem;
+            left: 0.5rem;
+            background: rgba(0, 0, 0, 0.75);
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .controls-hint kbd {
+            background: var(--border);
+            padding: 0.15rem 0.35rem;
+            border-radius: 3px;
+            margin: 0 0.1rem;
+        }
+
+        .collision-warning {
+            position: absolute;
+            top: 0.5rem;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--danger);
+            color: white;
+            padding: 0.4rem 1rem;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 0.8rem;
+            animation: pulse 0.5s ease-in-out infinite;
+            display: none;
+        }
+
+        .collision-warning.active {
+            display: block;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+                transform: translateX(-50%) scale(1);
+            }
+
+            50% {
+                opacity: 0.8;
+                transform: translateX(-50%) scale(1.05);
+            }
+        }
+
+        /* Sensor Grid */
+        .sensor-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 0.75rem;
+        }
+
+        .sensor-card {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .sensor-icon {
+            font-size: 1.5rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .sensor-label {
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 0.25rem;
+        }
+
+        .sensor-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .sensor-value.warning {
+            color: var(--warning);
+        }
+
+        .sensor-value.danger {
+            color: var(--danger);
+        }
+
+        .sensor-unit {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* FHE Section */
+        .fhe-section {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            padding: 1rem;
+        }
+
+        .fhe-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 0.75rem;
+        }
+
+        .fhe-header h3 {
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .fhe-badge {
+            font-size: 0.7rem;
+            padding: 0.25rem 0.5rem;
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--accent);
+            border-radius: 4px;
+        }
+
+        .ciphertext-box {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            color: var(--accent);
+            background: var(--bg-dark);
+            padding: 0.75rem;
+            border-radius: 8px;
+            word-break: break-all;
+            max-height: 80px;
+            overflow-y: auto;
+        }
+
+        /* Risk & ML Section */
+        .ml-section {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+        }
+
+        .risk-card {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            border: 1px solid var(--border);
+            padding: 1rem;
+            text-align: center;
+        }
+
+        .risk-score {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 2.5rem;
+            font-weight: 700;
+        }
+
+        .risk-score.low {
+            color: var(--accent);
+        }
+
+        .risk-score.medium {
+            color: var(--warning);
+        }
+
+        .risk-score.high,
+        .risk-score.critical {
+            color: var(--danger);
+        }
+
+        .risk-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 0.25rem;
+        }
+
+        .risk-badge {
+            display: inline-block;
+            padding: 0.25rem 0.75rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            margin-top: 0.5rem;
+        }
+
+        .risk-badge.low {
+            background: rgba(16, 185, 129, 0.2);
+            color: var(--accent);
+        }
+
+        .risk-badge.medium {
+            background: rgba(245, 158, 11, 0.2);
+            color: var(--warning);
+        }
+
+        .risk-badge.high,
+        .risk-badge.critical {
+            background: rgba(239, 68, 68, 0.2);
+            color: var(--danger);
+        }
+
+        .recommendation {
+            font-size: 0.8rem;
+            margin-top: 0.5rem;
+            color: var(--text-muted);
+        }
+
+        /* Server Info */
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 0.5rem;
+        }
+
+        .info-item {
+            background: var(--bg-dark);
+            padding: 0.75rem;
+            border-radius: 8px;
+            text-align: center;
+        }
+
+        .info-label {
+            font-size: 0.65rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .info-value {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.9rem;
+            font-weight: 600;
+            color: var(--primary);
+        }
+
+        /* Registration Modal */
+        .modal {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+            padding: 1rem;
+        }
+
+        .modal.hidden {
+            display: none;
+        }
+
+        .modal-content {
+            background: var(--bg-card);
+            border-radius: var(--radius);
+            padding: 1.5rem;
+            max-width: 360px;
+            width: 100%;
+            text-align: center;
+        }
+
+        .modal h2 {
+            font-size: 1.25rem;
+            margin-bottom: 0.5rem;
+        }
+
+        .modal p {
+            font-size: 0.85rem;
+            color: var(--text-muted);
+            margin-bottom: 1rem;
+        }
+
+        .code-input {
+            width: 100%;
+            padding: 1rem;
+            font-size: 1.5rem;
+            font-family: 'JetBrains Mono', monospace;
+            text-align: center;
+            background: var(--bg-dark);
+            border: 2px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            text-transform: uppercase;
+            letter-spacing: 0.5rem;
+            margin-bottom: 1rem;
+        }
+
+        .code-input:focus {
+            outline: none;
+            border-color: var(--primary);
+        }
+
+        .btn {
+            width: 100%;
+            padding: 0.85rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            margin-bottom: 0.5rem;
+        }
+
+        .btn-primary {
+            background: var(--primary);
+            color: white;
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--text-muted);
+            border: 1px solid var(--border);
+        }
+
+        .btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Footer */
+        .footer {
+            padding: 0.75rem 1rem;
+            background: var(--bg-card);
+            border-top: 1px solid var(--border);
+            text-align: center;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+        }
+
+        /* Mobile Touch Controls */
+        .touch-controls {
+            display: none;
+            position: fixed;
+            bottom: 1rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 50;
+        }
+
+        .touch-dpad {
+            display: grid;
+            grid-template-columns: repeat(3, 60px);
+            grid-template-rows: repeat(3, 60px);
+            gap: 5px;
+        }
+
+        .touch-btn {
+            background: rgba(59, 130, 246, 0.3);
+            border: 2px solid var(--primary);
+            border-radius: 12px;
+            color: white;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-user-select: none;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        .touch-btn:active {
+            background: rgba(59, 130, 246, 0.6);
+        }
+
+        .touch-btn.up {
+            grid-column: 2;
+            grid-row: 1;
+        }
+
+        .touch-btn.left {
+            grid-column: 1;
+            grid-row: 2;
+        }
+
+        .touch-btn.brake {
+            grid-column: 2;
+            grid-row: 2;
+            font-size: 0.8rem;
+        }
+
+        .touch-btn.right {
+            grid-column: 3;
+            grid-row: 2;
+        }
+
+        .touch-btn.down {
+            grid-column: 2;
+            grid-row: 3;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sensor-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .ml-section {
+                grid-template-columns: 1fr;
+            }
+
+            .info-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .touch-controls {
+                display: block;
+            }
+
+            .controls-hint {
+                display: none;
+            }
+
+            .sim-container {
+                height: 40vh;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .logo span:last-child {
+                display: none;
+            }
+
+            .sensor-card {
+                padding: 0.75rem 0.5rem;
+            }
+
+            .sensor-value {
+                font-size: 1.25rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="logo">
+            <span>🚗</span>
+            <span>FHE Robot Car</span>
+        </div>
+        <div class="status-pills">
+            <div class="pill">
+                <span class="dot" id="connectionDot"></span>
+                <span id="connectionText">Connecting</span>
+            </div>
+            <div class="pill trust-badge" id="trustBadge">
+                <span id="trustIcon">🔒</span>
+                <span id="trustText">Untrusted</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Registration Modal -->
+    <div class="modal" id="registrationModal">
+        <div class="modal-content">
+            <h2>🔐 Device Registration</h2>
+            <p>Enter your code to view decrypted sensor data</p>
+            <input type="text" id="regCode" class="code-input" placeholder="ABC123" maxlength="6">
+            <button class="btn btn-primary" id="registerBtn">Register Device</button>
+            <button class="btn btn-secondary" id="skipBtn">Continue as Untrusted</button>
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <main class="main">
+        <!-- Simulation Canvas -->
+        <div class="sim-container">
+            <canvas id="gameCanvas"></canvas>
+            <div class="collision-warning" id="collisionWarning">⚠️ COLLISION WARNING</div>
+            <div class="controls-hint">
+                <kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> or Arrows to drive | <kbd>Space</kbd> brake |
+                <kbd>R</kbd> reset
+            </div>
+        </div>
+
+        <!-- Sensor Data -->
+        <div class="sensor-grid">
+            <div class="sensor-card">
+                <div class="sensor-icon">⬆️</div>
+                <div class="sensor-label">Front</div>
+                <div class="sensor-value" id="sensorFront">--</div>
+                <div class="sensor-unit">cm</div>
+            </div>
+            <div class="sensor-card">
+                <div class="sensor-icon">⬅️</div>
+                <div class="sensor-label">Left</div>
+                <div class="sensor-value" id="sensorLeft">--</div>
+                <div class="sensor-unit">cm</div>
+            </div>
+            <div class="sensor-card">
+                <div class="sensor-icon">➡️</div>
+                <div class="sensor-label">Right</div>
+                <div class="sensor-value" id="sensorRight">--</div>
+                <div class="sensor-unit">cm</div>
+            </div>
+            <div class="sensor-card">
+                <div class="sensor-icon">⬇️</div>
+                <div class="sensor-label">Rear</div>
+                <div class="sensor-value" id="sensorRear">--</div>
+                <div class="sensor-unit">cm</div>
+            </div>
+        </div>
+
+        <!-- ML Risk Analysis -->
+        <div class="ml-section">
+            <div class="risk-card">
+                <div class="sensor-icon">⚠️</div>
+                <div class="sensor-label">Collision Risk</div>
+                <div class="risk-score low" id="riskScore">0</div>
+                <div class="sensor-unit">%</div>
+                <div class="risk-badge low" id="riskBadge">SAFE</div>
+                <div class="recommendation" id="recommendation">✅ Clear path ahead</div>
+            </div>
+            <div class="risk-card">
+                <div class="sensor-icon">🚗</div>
+                <div class="sensor-label">Speed & Temp</div>
+                <div class="sensor-value" id="carSpeed" style="color: var(--primary);">0</div>
+                <div class="sensor-unit">km/h</div>
+                <div style="margin-top: 0.5rem; font-size: 0.85rem;">
+                    🌡️ Motor: <span id="motorTemp">25</span>°C
+                </div>
+            </div>
+        </div>
+
+        <!-- FHE Encryption Status -->
+        <div class="fhe-section">
+            <div class="fhe-header">
+                <h3>🔒 Encrypted Data (FHE)</h3>
+                <span class="fhe-badge">CKKS 128-bit</span>
+            </div>
+            <div class="ciphertext-box" id="ciphertextBox">
+                Waiting for encrypted sensor data...
+            </div>
+        </div>
+
+        <!-- Server Info -->
+        <div class="fhe-section">
+            <div class="fhe-header">
+                <h3>🖥️ Server Status</h3>
+                <span class="fhe-badge" id="serverStatus">Online</span>
+            </div>
+            <div class="info-grid">
+                <div class="info-item">
+                    <div class="info-label">Packets</div>
+                    <div class="info-value" id="packetCount">0</div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Position</div>
+                    <div class="info-value"><span id="posX">0</span>, <span id="posY">0</span></div>
+                </div>
+                <div class="info-item">
+                    <div class="info-label">Heading</div>
+                    <div class="info-value" id="heading">0°</div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+        🔐 All sensor data encrypted with Fully Homomorphic Encryption before transmission
+    </footer>
+
+    <!-- Mobile Touch Controls -->
+    <div class="touch-controls" id="touchControls">
+        <div class="touch-dpad">
+            <div class="touch-btn up" data-key="forward">↑</div>
+            <div class="touch-btn left" data-key="left">←</div>
+            <div class="touch-btn brake" data-key="brake">STOP</div>
+            <div class="touch-btn right" data-key="right">→</div>
+            <div class="touch-btn down" data-key="backward">↓</div>
+        </div>
+    </div>
+
+    <script src="unified.js"></script>
+</body>
+
+</html>

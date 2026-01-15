@@ -1,0 +1,145 @@
+{
+  "timestamp": "2026-01-10T19:05:56.176515",
+  "system_info": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "python_version": "3.13.2",
+    "fhe_library": "TenSEAL (CKKS)",
+    "security_level": "128-bit"
+  },
+  "results": [
+    {
+      "name": "Context Creation (Full)",
+      "iterations": 10,
+      "mean_ms": 229.9275,
+      "std_ms": 2.3563,
+      "min_ms": 227.1509,
+      "max_ms": 235.1193,
+      "total_ms": 2299.2749
+    },
+    {
+      "name": "Encrypt Single Value",
+      "iterations": 10,
+      "mean_ms": 5.4638,
+      "std_ms": 0.2755,
+      "min_ms": 4.9252,
+      "max_ms": 5.9126,
+      "total_ms": 54.6381
+    },
+    {
+      "name": "Encrypt Batch (5 values)",
+      "iterations": 10,
+      "mean_ms": 6.0751,
+      "std_ms": 0.691,
+      "min_ms": 5.2243,
+      "max_ms": 7.4851,
+      "total_ms": 60.7514
+    },
+    {
+      "name": "Encrypt Batch (50 values)",
+      "iterations": 10,
+      "mean_ms": 5.7211,
+      "std_ms": 0.2554,
+      "min_ms": 5.1843,
+      "max_ms": 6.1749,
+      "total_ms": 57.2111
+    },
+    {
+      "name": "Decrypt Batch (5 values)",
+      "iterations": 10,
+      "mean_ms": 2.2597,
+      "std_ms": 0.1967,
+      "min_ms": 2.0115,
+      "max_ms": 2.6431,
+      "total_ms": 22.597
+    },
+    {
+      "name": "HE Addition (cipher + cipher)",
+      "iterations": 10,
+      "mean_ms": 4.4816,
+      "std_ms": 0.5011,
+      "min_ms": 3.9548,
+      "max_ms": 5.3242,
+      "total_ms": 44.8164
+    },
+    {
+      "name": "HE Multiplication (cipher * cipher)",
+      "iterations": 10,
+      "mean_ms": 5.1411,
+      "std_ms": 0.3453,
+      "min_ms": 4.7564,
+      "max_ms": 5.855,
+      "total_ms": 51.4107
+    },
+    {
+      "name": "HE Scalar Mult (cipher * plain)",
+      "iterations": 10,
+      "mean_ms": 2.8217,
+      "std_ms": 0.1429,
+      "min_ms": 2.6748,
+      "max_ms": 3.0676,
+      "total_ms": 28.217
+    },
+    {
+      "name": "HE Mean (encrypted)",
+      "iterations": 10,
+      "mean_ms": 9.9574,
+      "std_ms": 0.5784,
+      "min_ms": 9.3543,
+      "max_ms": 11.2762,
+      "total_ms": 99.5744
+    },
+    {
+      "name": "ML: Encrypt Sensors",
+      "iterations": 10,
+      "mean_ms": 5.4243,
+      "std_ms": 0.3758,
+      "min_ms": 4.8795,
+      "max_ms": 6.1194,
+      "total_ms": 54.2432
+    },
+    {
+      "name": "ML: Encrypted Inference (PPML)",
+      "iterations": 10,
+      "mean_ms": 10.6941,
+      "std_ms": 0.5006,
+      "min_ms": 10.011,
+      "max_ms": 11.5271,
+      "total_ms": 106.9412
+    },
+    {
+      "name": "ML: Decrypt Result",
+      "iterations": 10,
+      "mean_ms": 1.5254,
+      "std_ms": 0.0753,
+      "min_ms": 1.4525,
+      "max_ms": 1.6946,
+      "total_ms": 15.2537
+    },
+    {
+      "name": "ML: Full Pipeline (E2E)",
+      "iterations": 10,
+      "mean_ms": 16.6155,
+      "std_ms": 1.0856,
+      "min_ms": 15.6107,
+      "max_ms": 19.3979,
+      "total_ms": 166.1553
+    },
+    {
+      "name": "ML: Plaintext Inference (baseline)",
+      "iterations": 10,
+      "mean_ms": 0.0019,
+      "std_ms": 0.0004,
+      "min_ms": 0.0016,
+      "max_ms": 0.0029,
+      "total_ms": 0.0189
+    }
+  ],
+  "summary": {
+    "total_benchmarks": 14,
+    "encryption_overhead_factor": 5658.3,
+    "avg_encryption_time_ms": 6.08,
+    "avg_full_pipeline_ms": 16.62,
+    "suitable_for_realtime": true
+  }
+}

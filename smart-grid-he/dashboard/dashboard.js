@@ -11,6 +11,7 @@ class SmartGridDashboard {
         this.history = [];
         this.maxHistoryPoints = 20;
         this.roundNumber = 0;
+        this.currentAgentCount = 25; // Default, will be updated from server
 
         // Chart instances
         this.comparisonChart = null;
@@ -271,56 +272,141 @@ class SmartGridDashboard {
         if (this.errorChart) this.errorChart.resize();
     }
 
-    generateTopology() {
+    generateTopology(agentCount = null) {
         const container = document.getElementById('house-nodes');
         const linesContainer = document.getElementById('connection-lines');
         if (!container || !linesContainer) return;
 
         const centerX = 400;
         const centerY = 280;
-        const numHouses = 12;
-
-        // Create neat circular layout with proper spacing
-        const radius = 180;
+        const numHouses = agentCount || this.currentAgentCount || 25;
 
         let housesHtml = '';
         let linesHtml = '';
 
-        for (let i = 0; i < numHouses; i++) {
-            // Start from top (12 o'clock) and go clockwise
-            const angle = (i / numHouses) * 2 * Math.PI - Math.PI / 2;
-            const x = centerX + radius * Math.cos(angle);
-            const y = centerY + radius * Math.sin(angle);
+        // Determine layout based on number of houses
+        if (numHouses <= 16) {
+            // Single ring layout for small numbers
+            const radius = 180;
+            for (let i = 0; i < numHouses; i++) {
+                const angle = (i / numHouses) * 2 * Math.PI - Math.PI / 2;
+                const x = centerX + radius * Math.cos(angle);
+                const y = centerY + radius * Math.sin(angle);
 
-            // Connection line
-            linesHtml += `
-                <line class="connection-line" 
-                      x1="${x}" y1="${y}" 
-                      x2="${centerX}" y2="${centerY}" 
-                      stroke="url(#line-gradient)" 
-                      stroke-width="1.5" 
-                      stroke-dasharray="5,5"
-                      opacity="0.6">
-                </line>
-            `;
+                const nodeHtml = this.createHouseNode(i, x, y, centerX, centerY);
+                housesHtml += nodeHtml.house;
+                linesHtml += nodeHtml.line;
+            }
+        } else if (numHouses <= 36) {
+            // Two ring layout
+            const innerRadius = 140;
+            const outerRadius = 220;
+            const innerCount = Math.floor(numHouses * 0.4);
+            const outerCount = numHouses - innerCount;
 
-            // House node - cleaner design
-            const houseId = i + 1;
-            housesHtml += `
-                <g class="house-node" id="house-${i}" transform="translate(${x}, ${y})">
-                    <rect class="house-bg" x="-35" y="-28" width="70" height="56" rx="8" 
-                          fill="#161b22" stroke="#f0a500" stroke-width="2"/>
-                    <text y="-8" text-anchor="middle" font-size="18">🏠</text>
-                    <text y="8" text-anchor="middle" fill="#e6edf3" font-size="11" font-weight="600">H${houseId}</text>
-                    <rect class="demand-bar-bg" x="-25" y="14" width="50" height="6" rx="3" fill="#0d1117"/>
-                    <rect class="demand-bar" id="demand-bar-${i}" x="-25" y="14" width="25" height="6" rx="3" fill="#4ecca3"/>
-                    <text class="house-demand" id="house-demand-${i}" y="30" text-anchor="middle" fill="#8b949e" font-size="8"></text>
-                </g>
-            `;
+            // Inner ring
+            for (let i = 0; i < innerCount; i++) {
+                const angle = (i / innerCount) * 2 * Math.PI - Math.PI / 2;
+                const x = centerX + innerRadius * Math.cos(angle);
+                const y = centerY + innerRadius * Math.sin(angle);
+
+                const nodeHtml = this.createHouseNode(i, x, y, centerX, centerY, true);
+                housesHtml += nodeHtml.house;
+                linesHtml += nodeHtml.line;
+            }
+
+            // Outer ring
+            for (let i = 0; i < outerCount; i++) {
+                const angle = (i / outerCount) * 2 * Math.PI - Math.PI / 2;
+                const x = centerX + outerRadius * Math.cos(angle);
+                const y = centerY + outerRadius * Math.sin(angle);
+
+                const idx = innerCount + i;
+                const nodeHtml = this.createHouseNode(idx, x, y, centerX, centerY);
+                housesHtml += nodeHtml.house;
+                linesHtml += nodeHtml.line;
+            }
+        } else {
+            // Three ring layout for large numbers
+            const innerRadius = 110;
+            const middleRadius = 170;
+            const outerRadius = 230;
+            const innerCount = Math.floor(numHouses * 0.2);
+            const middleCount = Math.floor(numHouses * 0.35);
+            const outerCount = numHouses - innerCount - middleCount;
+
+            // Inner ring
+            for (let i = 0; i < innerCount; i++) {
+                const angle = (i / innerCount) * 2 * Math.PI - Math.PI / 2;
+                const x = centerX + innerRadius * Math.cos(angle);
+                const y = centerY + innerRadius * Math.sin(angle);
+
+                const nodeHtml = this.createHouseNode(i, x, y, centerX, centerY, true);
+                housesHtml += nodeHtml.house;
+                linesHtml += nodeHtml.line;
+            }
+
+            // Middle ring
+            for (let i = 0; i < middleCount; i++) {
+                const angle = (i / middleCount) * 2 * Math.PI - Math.PI / 2;
+                const x = centerX + middleRadius * Math.cos(angle);
+                const y = centerY + middleRadius * Math.sin(angle);
+
+                const idx = innerCount + i;
+                const nodeHtml = this.createHouseNode(idx, x, y, centerX, centerY, true);
+                housesHtml += nodeHtml.house;
+                linesHtml += nodeHtml.line;
+            }
+
+            // Outer ring
+            for (let i = 0; i < outerCount; i++) {
+                const angle = (i / outerCount) * 2 * Math.PI - Math.PI / 2;
+                const x = centerX + outerRadius * Math.cos(angle);
+                const y = centerY + outerRadius * Math.sin(angle);
+
+                const idx = innerCount + middleCount + i;
+                const nodeHtml = this.createHouseNode(idx, x, y, centerX, centerY);
+                housesHtml += nodeHtml.house;
+                linesHtml += nodeHtml.line;
+            }
         }
 
         linesContainer.innerHTML = linesHtml;
         container.innerHTML = housesHtml;
+    }
+
+    createHouseNode(index, x, y, centerX, centerY, compact = false) {
+        const houseId = index + 1;
+        const size = compact ? 0.75 : 1;
+        const width = 70 * size;
+        const height = 56 * size;
+        const halfW = width / 2;
+        const halfH = height / 2;
+
+        const line = `
+            <line class="connection-line" 
+                  x1="${x}" y1="${y}" 
+                  x2="${centerX}" y2="${centerY}" 
+                  stroke="url(#line-gradient)" 
+                  stroke-width="1.5" 
+                  stroke-dasharray="5,5"
+                  opacity="0.6">
+            </line>
+        `;
+
+        const house = `
+            <g class="house-node" id="house-${index}" transform="translate(${x}, ${y})" data-house-id="${index}">
+                <rect class="house-bg" x="-${halfW}" y="-${halfH}" width="${width}" height="${height}" rx="8" 
+                      fill="#161b22" stroke="#f0a500" stroke-width="2"/>
+                <text y="${-4 * size}" text-anchor="middle" fill="#f0a500" font-size="${10 * size}" font-weight="bold">[H]</text>
+                <text y="${10 * size}" text-anchor="middle" fill="#e6edf3" font-size="${11 * size}" font-weight="600">H${houseId}</text>
+                <rect class="demand-bar-bg" x="${-25 * size}" y="${16 * size}" width="${50 * size}" height="${6 * size}" rx="3" fill="#0d1117"/>
+                <rect class="demand-bar" id="demand-bar-${index}" x="${-25 * size}" y="${16 * size}" width="${25 * size}" height="${6 * size}" rx="3" fill="#4ecca3"/>
+                <text class="house-demand" id="house-demand-${index}" y="${32 * size}" text-anchor="middle" fill="#8b949e" font-size="${8 * size}"></text>
+            </g>
+        `;
+
+        return { line, house };
     }
 
     async loadInitialData() {
@@ -331,6 +417,10 @@ class SmartGridDashboard {
             document.getElementById('agent-count').textContent = status.agent_count || '--';
             this.roundNumber = status.round_count || 0;
             document.getElementById('round-count').textContent = this.roundNumber;
+
+            // Update current agent count and regenerate topology
+            this.currentAgentCount = status.agent_count || 25;
+            this.generateTopology(this.currentAgentCount);
 
             await this.loadAgents();
             this.loadSecurityLogs();
@@ -416,7 +506,8 @@ class SmartGridDashboard {
     }
 
     updateHouseVisuals() {
-        this.agents.slice(0, 12).forEach((agent, i) => {
+        // Update all agents, not just first 12
+        this.agents.forEach((agent, i) => {
             const bar = document.getElementById(`demand-bar-${i}`);
             const demandText = document.getElementById(`house-demand-${i}`);
             const node = document.getElementById(`house-${i}`);
@@ -425,9 +516,15 @@ class SmartGridDashboard {
                 const demand = agent.current_demand_kw || 0;
                 const maxDemand = 8;
                 const percentage = Math.min(demand / maxDemand, 1);
-                const width = 50 * percentage;
 
-                bar.setAttribute('width', Math.max(width, 2));
+                // Get the background bar width to determine max width
+                const node = document.getElementById(`house-${i}`);
+                const bgBar = node ? node.querySelector('.demand-bar-bg') : null;
+                const maxWidth = bgBar ? parseFloat(bgBar.getAttribute('width')) : 50;
+                const width = maxWidth * percentage;
+
+                // Clamp width to max to prevent overflow
+                bar.setAttribute('width', Math.min(Math.max(width, 2), maxWidth));
 
                 // Color based on demand level
                 if (percentage > 0.8) {
@@ -438,7 +535,7 @@ class SmartGridDashboard {
                     bar.setAttribute('fill', '#4ecca3');
                 }
 
-                // Show demand value
+                // Always show demand value (with appropriate formatting)
                 if (demandText) {
                     demandText.textContent = `${demand.toFixed(1)} kW`;
                 }
@@ -463,35 +560,43 @@ class SmartGridDashboard {
 
         const centerX = 400;
         const centerY = 280;
-        const radius = 180;
-        const numHouses = 12;
+        const numHouses = this.currentAgentCount || 25;
 
         let packetsHtml = '';
 
-        for (let i = 0; i < numHouses; i++) {
-            const angle = (i / numHouses) * 2 * Math.PI - Math.PI / 2;
-            const startX = centerX + radius * Math.cos(angle);
-            const startY = centerY + radius * Math.sin(angle);
+        // Get positions from existing house nodes
+        const houseNodes = document.querySelectorAll('.house-node');
+        const positions = [];
+
+        houseNodes.forEach(node => {
+            const transform = node.getAttribute('transform');
+            const match = transform.match(/translate\(([\d.]+),\s*([\d.]+)\)/);
+            if (match) {
+                positions.push({ x: parseFloat(match[1]), y: parseFloat(match[2]) });
+            }
+        });
+
+        // Limit animation to avoid performance issues on large grids
+        const animateCount = Math.min(positions.length, 50);
+        const delay = positions.length > 30 ? 0.02 : 0.04; // Faster for many houses
+
+        for (let i = 0; i < animateCount; i++) {
+            const pos = positions[i];
+            if (!pos) continue;
+
+            const startX = pos.x;
+            const startY = pos.y;
 
             packetsHtml += `
                 <g class="data-packet-group">
-                    <circle r="8" fill="#4ecca3" opacity="0.9" filter="url(#glow)">
-                        <animate attributeName="cx" from="${startX}" to="${centerX}" dur="0.6s" 
-                                 begin="${i * 0.04}s" fill="freeze"/>
-                        <animate attributeName="cy" from="${startY}" to="${centerY}" dur="0.6s" 
-                                 begin="${i * 0.04}s" fill="freeze"/>
-                        <animate attributeName="opacity" from="0.9" to="0" dur="0.6s" 
-                                 begin="${i * 0.04}s" fill="freeze"/>
+                    <circle r="6" fill="#4ecca3" opacity="0.9" filter="url(#glow)">
+                        <animate attributeName="cx" from="${startX}" to="${centerX}" dur="0.5s" 
+                                 begin="${i * delay}s" fill="freeze"/>
+                        <animate attributeName="cy" from="${startY}" to="${centerY}" dur="0.5s" 
+                                 begin="${i * delay}s" fill="freeze"/>
+                        <animate attributeName="opacity" from="0.9" to="0" dur="0.5s" 
+                                 begin="${i * delay}s" fill="freeze"/>
                     </circle>
-                    <text fill="#4ecca3" font-size="8" opacity="0.8">
-                        <animate attributeName="x" from="${startX + 10}" to="${centerX + 10}" dur="0.6s" 
-                                 begin="${i * 0.04}s" fill="freeze"/>
-                        <animate attributeName="y" from="${startY}" to="${centerY}" dur="0.6s" 
-                                 begin="${i * 0.04}s" fill="freeze"/>
-                        <animate attributeName="opacity" from="0.8" to="0" dur="0.6s" 
-                                 begin="${i * 0.04}s" fill="freeze"/>
-                        🔒
-                    </text>
                 </g>
             `;
         }
@@ -500,7 +605,7 @@ class SmartGridDashboard {
 
         setTimeout(() => {
             packetsContainer.innerHTML = '';
-        }, 1000);
+        }, 1500);
     }
 
     handleMessage(message) {
@@ -576,7 +681,7 @@ class SmartGridDashboard {
             document.querySelector('.util-fill').style.width = '0%';
 
             const flowContainer = document.getElementById('encrypted-flow');
-            flowContainer.innerHTML = '<div class="flow-item placeholder"><span class="agent-icon">🏠</span><span class="arrow">→</span><span class="ciphertext">Run a round to see encrypted data per household...</span></div>';
+            flowContainer.innerHTML = '<div class="flow-item placeholder"><span class="agent-icon">[H]</span><span class="arrow">-></span><span class="ciphertext">Run a round to see encrypted data per household...</span></div>';
 
             await this.loadInitialData();
 
@@ -610,7 +715,11 @@ class SmartGridDashboard {
 
             this.history = [];
             this.roundNumber = 0;
+            this.currentAgentCount = agents; // Update local count
             this.updateCharts();
+
+            // Regenerate topology with new agent count
+            this.generateTopology(agents);
 
             await this.loadInitialData();
 
@@ -697,9 +806,9 @@ class SmartGridDashboard {
             const item = document.createElement('div');
             item.className = 'flow-item';
             item.innerHTML = `
-                <span class="agent-icon">🏠 H${i + 1}</span>
+                <span class="agent-icon">[H${i + 1}]</span>
                 <span class="demand-value">${demand.toFixed(2)} kW</span>
-                <span class="arrow">→ 🔒 →</span>
+                <span class="arrow">-> [ENC] -></span>
                 <span class="ciphertext">${uniqueCiphertext}</span>
             `;
             container.appendChild(item);

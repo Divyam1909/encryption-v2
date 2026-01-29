@@ -12,13 +12,13 @@
 <body>
     <div class="container">
         <header>
-            <h1>🔒 Privacy-Preserving Smart Grid</h1>
+            <h1><span class="icon-lock"></span> Privacy-Preserving Smart Grid</h1>
             <p class="subtitle">Homomorphic Encryption for Load Balancing</p>
         </header>
 
         <!-- Configuration Panel -->
         <div class="panel config-panel">
-            <h2>⚙️ System Configuration</h2>
+            <h2><span class="icon-gear"></span> System Configuration</h2>
             <div class="config-grid">
                 <div class="config-item">
                     <label>
@@ -70,30 +70,30 @@
             </div>
             <div class="status-item">
                 <span class="label">Privacy:</span>
-                <span id="privacy-status" class="value status-secure">✓ Preserved</span>
+                <span id="privacy-status" class="value status-secure">&#10003; Preserved</span>
             </div>
         </div>
 
         <!-- Controls -->
         <div class="controls">
-            <button id="run-round-btn" class="btn btn-primary">▶ Run Round</button>
-            <button id="auto-start-btn" class="btn btn-secondary">⟳ Auto (3s)</button>
-            <button id="auto-stop-btn" class="btn btn-danger" style="display:none;">⏹ Stop</button>
-            <button id="reset-btn" class="btn btn-secondary">↺ Reset</button>
+            <button id="run-round-btn" class="btn btn-primary">&#9654; Run Round</button>
+            <button id="auto-start-btn" class="btn btn-secondary">&#8635; Auto (3s)</button>
+            <button id="auto-stop-btn" class="btn btn-danger" style="display:none;">&#9632; Stop</button>
+            <button id="reset-btn" class="btn btn-secondary">&#8634; Reset</button>
         </div>
 
         <!-- Tab Navigation -->
         <div class="tab-nav">
-            <button class="tab-btn active" data-tab="topology">🏠 Grid Topology</button>
-            <button class="tab-btn" data-tab="graphs">📊 Analytics</button>
-            <button class="tab-btn" data-tab="system">🔐 System Info</button>
+            <button class="tab-btn active" data-tab="topology"><span class="icon-house"></span> Grid Topology</button>
+            <button class="tab-btn" data-tab="graphs"><span class="icon-chart"></span> Analytics</button>
+            <button class="tab-btn" data-tab="system"><span class="icon-shield"></span> System Info</button>
         </div>
 
         <!-- Tab Content: Grid Topology -->
         <div id="topology-tab" class="tab-content active">
             <!-- Grid Topology Visualization -->
             <div class="panel topology-panel">
-                <h2>🏘️ Smart Grid Topology</h2>
+                <h2><span class="icon-grid"></span> Smart Grid Topology</h2>
                 <div class="topology-container">
                     <svg id="grid-topology" viewBox="0 0 800 600" class="topology-svg">
                         <defs>
@@ -127,7 +127,7 @@
                                 stroke="#4ecca3" stroke-width="3" filter="url(#glow)" />
                             <text y="-8" text-anchor="middle" fill="#4ecca3" font-size="13"
                                 font-weight="600">COORDINATOR</text>
-                            <text y="8" text-anchor="middle" fill="#f0a500" font-size="10">🔒 No Secret Key</text>
+                            <text y="8" text-anchor="middle" fill="#f0a500" font-size="10">[LOCKED] No Secret Key</text>
                             <text y="24" text-anchor="middle" fill="#8b949e" font-size="9" id="coord-ops">Ops: 0</text>
                         </g>
 
@@ -135,9 +135,9 @@
                         <g id="utility-node" transform="translate(400, 520)">
                             <rect x="-70" y="-30" width="140" height="60" rx="10" fill="#161b22" stroke="#58a6ff"
                                 stroke-width="2" />
-                            <text y="-5" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="600">⚡ UTILITY
+                            <text y="-5" text-anchor="middle" fill="#58a6ff" font-size="12" font-weight="600">UTILITY
                                 COMPANY</text>
-                            <text y="12" text-anchor="middle" fill="#4ecca3" font-size="10">🔑 Has Secret Key</text>
+                            <text y="12" text-anchor="middle" fill="#4ecca3" font-size="10">[KEY] Has Secret Key</text>
                         </g>
 
                         <!-- Aggregate flow -->
@@ -147,7 +147,7 @@
                                 <animate attributeName="stroke-dashoffset" from="20" to="0" dur="1s"
                                     repeatCount="indefinite" />
                             </line>
-                            <text x="420" y="420" fill="#58a6ff" font-size="10" font-style="italic">E(Σdᵢ) →
+                            <text x="420" y="420" fill="#58a6ff" font-size="10" font-style="italic">E(Sum) ->
                                 Decrypt</text>
                         </g>
 
@@ -166,13 +166,13 @@
             <div class="main-grid">
                 <div class="panel">
                     <h2>
-                        📊 Aggregate Results
+                        <span class="icon-chart"></span> Aggregate Results
                         <span class="hint-icon large"
                             data-tooltip="These values are computed homomorphically on encrypted data. The coordinator never sees individual consumption - only the utility company can decrypt the final aggregates using its secret key.">?</span>
                     </h2>
                     <div class="info-box hint-box">
-                        <strong>How it works:</strong> Each household encrypts demand E(dᵢ). Coordinator computes E(Σdᵢ)
-                        = E(d₁) ⊕ E(d₂) ⊕ ... without decryption.
+                        <strong>How it works:</strong> Each household encrypts demand E(di). Coordinator computes E(Sum)
+                        = E(d1) + E(d2) + ... without decryption.
                         Utility decrypts only the aggregate, never individual values.
                     </div>
                     <div class="results-grid">
@@ -180,7 +180,7 @@
                             <span class="result-label">
                                 Total Demand
                                 <span class="hint-icon small"
-                                    data-tooltip="Sum of all encrypted household demands, decrypted by utility. Formula: Σdᵢ for i=1 to N households.">?</span>
+                                    data-tooltip="Sum of all encrypted household demands, decrypted by utility. Formula: Sum(di) for i=1 to N households.">?</span>
                             </span>
                             <span id="total-demand" class="result-value">-- kW</span>
                         </div>
@@ -188,7 +188,7 @@
                             <span class="result-label">
                                 Average Demand
                                 <span class="hint-icon small"
-                                    data-tooltip="Total demand divided by number of households. Computed as: E(Σdᵢ) × (1/N) homomorphically.">?</span>
+                                    data-tooltip="Total demand divided by number of households. Computed as: E(Sum) x (1/N) homomorphically.">?</span>
                             </span>
                             <span id="avg-demand" class="result-value">-- kW</span>
                         </div>
@@ -196,7 +196,7 @@
                             <span class="result-label">
                                 Grid Utilization
                                 <span class="hint-icon small"
-                                    data-tooltip="Percentage of grid capacity being used. Formula: (Total Demand / Grid Capacity) × 100%. Above 80% triggers load balancing.">?</span>
+                                    data-tooltip="Percentage of grid capacity being used. Formula: (Total Demand / Grid Capacity) x 100%. Above 80% triggers load balancing.">?</span>
                             </span>
                             <span id="utilization" class="result-value">-- %</span>
                             <div id="util-bar" class="util-bar">
@@ -216,19 +216,19 @@
 
                 <div class="panel">
                     <h2>
-                        🔐 Per-Household Encrypted Data
+                        <span class="icon-lock"></span> Per-Household Encrypted Data
                         <span class="hint-icon large"
                             data-tooltip="Each household has a UNIQUE ciphertext because CKKS encryption uses random noise. Even identical plaintext values produce different ciphertexts, providing semantic security.">?</span>
                     </h2>
                     <div class="info-box hint-box">
-                        <strong>Why different ciphertexts?</strong> CKKS uses randomized encryption. Each E(dᵢ) includes
+                        <strong>Why different ciphertexts?</strong> CKKS uses randomized encryption. Each E(di) includes
                         unique random noise,
                         so even identical demands produce different ciphertexts. This prevents pattern analysis.
                     </div>
                     <div id="encrypted-flow" class="encrypted-flow">
                         <div class="flow-item placeholder">
-                            <span class="agent-icon">🏠</span>
-                            <span class="arrow">→</span>
+                            <span class="agent-icon">[H]</span>
+                            <span class="arrow">-></span>
                             <span class="ciphertext">Run a round to see encrypted data per household...</span>
                         </div>
                     </div>
@@ -241,11 +241,11 @@
             <!-- Comparison Charts -->
             <div class="panel chart-panel">
                 <h2>
-                    📈 Encrypted vs Plaintext Comparison
+                    <span class="icon-chart"></span> Encrypted vs Plaintext Comparison
                     <span class="hint-icon large"
-                        data-tooltip="This chart proves FHE correctness: decrypted encrypted computation matches direct plaintext computation. The error is ~10⁻⁷, negligible for power grid applications.">?</span>
+                        data-tooltip="This chart proves FHE correctness: decrypted encrypted computation matches direct plaintext computation. The error is ~10^-7, negligible for power grid applications.">?</span>
                 </h2>
-                <p class="note">CKKS scheme maintains ~10⁻⁷ relative error, negligible for practical use. Both lines
+                <p class="note">CKKS scheme maintains ~10^-7 relative error, negligible for practical use. Both lines
                     should overlap almost perfectly.</p>
                 <div class="chart-container">
                     <canvas id="comparison-chart"></canvas>
@@ -254,13 +254,13 @@
 
             <div class="charts-grid">
                 <div class="panel chart-panel">
-                    <h2>⚡ Grid Utilization Over Time</h2>
+                    <h2><span class="icon-bolt"></span> Grid Utilization Over Time</h2>
                     <div class="chart-container-medium">
                         <canvas id="utilization-chart"></canvas>
                     </div>
                 </div>
                 <div class="panel chart-panel">
-                    <h2>⏱️ FHE Computation Time</h2>
+                    <h2><span class="icon-clock"></span> FHE Computation Time</h2>
                     <div class="chart-container-medium">
                         <canvas id="time-chart"></canvas>
                     </div>
@@ -269,7 +269,7 @@
 
             <!-- Error Chart -->
             <div class="panel chart-panel">
-                <h2>🎯 Encryption Error Analysis</h2>
+                <h2><span class="icon-target"></span> Encryption Error Analysis</h2>
                 <p class="note">Shows the absolute difference between encrypted and plaintext computations. Lower is
                     better.</p>
                 <div class="chart-container-small">
@@ -279,7 +279,7 @@
 
             <!-- Accuracy Metrics -->
             <div class="panel comparison-panel">
-                <h2>⚖️ Latest Round Accuracy</h2>
+                <h2><span class="icon-scale"></span> Latest Round Accuracy</h2>
                 <div class="comparison-grid">
                     <div class="comparison-card">
                         <span class="comparison-label">Encrypted Total</span>
@@ -305,10 +305,10 @@
         <div id="system-tab" class="tab-content">
             <!-- Encryption Details -->
             <div class="panel info-panel">
-                <h2>🔐 Homomorphic Encryption Details</h2>
+                <h2><span class="icon-lock"></span> Homomorphic Encryption Details</h2>
                 <div class="info-grid">
                     <div class="info-card">
-                        <div class="info-icon">🛡️</div>
+                        <div class="info-icon shield-icon"></div>
                         <div class="info-content">
                             <h3>CKKS Scheme</h3>
                             <p>Cheon-Kim-Kim-Song scheme for approximate arithmetic on encrypted real numbers.</p>
@@ -319,13 +319,13 @@
                         </div>
                     </div>
                     <div class="info-card">
-                        <div class="info-icon">🔢</div>
+                        <div class="info-icon key-icon"></div>
                         <div class="info-content">
                             <h3>Cryptographic Parameters</h3>
                             <p>Optimized for smart grid aggregation with sufficient depth for operations.</p>
                             <div class="tech-specs">
                                 <span><strong>Poly Degree:</strong> 16384</span>
-                                <span><strong>Scale:</strong> 2⁴⁰</span>
+                                <span><strong>Scale:</strong> 2^40</span>
                                 <span><strong>Precision:</strong> ~12 digits</span>
                             </div>
                         </div>
@@ -335,12 +335,12 @@
 
             <!-- Novel Contributions - Expandable -->
             <div class="panel info-panel">
-                <h2>⭐ Novel Research Contributions</h2>
+                <h2><span class="icon-star"></span> Novel Research Contributions</h2>
                 <p class="note">Click each contribution to expand and learn more.</p>
 
                 <div class="expandable-card" id="contrib-1">
                     <div class="expandable-header" onclick="toggleExpand('contrib-1')">
-                        <div class="expand-icon">▶</div>
+                        <div class="expand-icon">&#9654;</div>
                         <div class="expand-title">
                             <span class="expand-number">1</span>
                             <h3>Encrypted Threshold Detection via Linear Approximation</h3>
@@ -348,27 +348,27 @@
                     </div>
                     <div class="expandable-content">
                         <div class="contribution-detail">
-                            <h4>🤔 The Problem</h4>
+                            <h4>The Problem</h4>
                             <p>Homomorphic encryption lets you compute on encrypted data, but it <strong>cannot compare
                                     values</strong>.
                                 For example, you can't directly check "is the encrypted demand greater than 80%
                                 capacity?" without decrypting first.</p>
 
-                            <h4>💡 Our Solution</h4>
+                            <h4>Our Solution</h4>
                             <p>We use a <strong>linear approximation</strong> instead of trying to compute exact
                                 comparisons:</p>
-                            <code class="formula">score(x) = 0.5 + (x - Threshold) × (0.5 / δ)</code>
+                            <code class="formula">score(x) = 0.5 + (x - Threshold) x (0.5 / delta)</code>
 
-                            <h4>📊 How It Works</h4>
+                            <h4>How It Works</h4>
                             <ul>
                                 <li><strong>Score near 0:</strong> Value is clearly BELOW the threshold</li>
                                 <li><strong>Score near 0.5:</strong> Value is NEAR the threshold (uncertain zone)</li>
                                 <li><strong>Score near 1:</strong> Value is clearly ABOVE the threshold</li>
                             </ul>
 
-                            <h4>✅ Why This Is Novel</h4>
+                            <h4>Why This Is Novel</h4>
                             <ul>
-                                <li>Uses only addition and scalar multiplication (no expensive ciphertext×ciphertext)
+                                <li>Uses only addition and scalar multiplication (no expensive ciphertext x ciphertext)
                                 </li>
                                 <li>Works within CKKS noise budget (depth 1 operation)</li>
                                 <li>Provides confidence levels, not just binary yes/no</li>
@@ -380,7 +380,7 @@
 
                 <div class="expandable-card" id="contrib-2">
                     <div class="expandable-header" onclick="toggleExpand('contrib-2')">
-                        <div class="expand-icon">▶</div>
+                        <div class="expand-icon">&#9654;</div>
                         <div class="expand-title">
                             <span class="expand-number">2</span>
                             <h3>Commitment-Based Verifiable Aggregation</h3>
@@ -388,26 +388,26 @@
                     </div>
                     <div class="expandable-content">
                         <div class="contribution-detail">
-                            <h4>🤔 The Problem</h4>
+                            <h4>The Problem</h4>
                             <p>How can the utility company <strong>verify</strong> that the coordinator computed the
                                 aggregate correctly?
                                 A malicious coordinator could manipulate the encrypted sum, and no one would know.</p>
 
-                            <h4>💡 Our Solution</h4>
+                            <h4>Our Solution</h4>
                             <p>Each household sends a <strong>Pedersen commitment</strong> alongside their encrypted
                                 data:</p>
-                            <code class="formula">Commit(value) = g^value × h^randomness</code>
+                            <code class="formula">Commit(value) = g^value x h^randomness</code>
 
-                            <h4>📊 How It Works</h4>
+                            <h4>How It Works</h4>
                             <ul>
-                                <li>Households send both E(dᵢ) and Commit(dᵢ)</li>
-                                <li>Commitments are <strong>additively homomorphic</strong>: Commit(a) × Commit(b) =
+                                <li>Households send both E(di) and Commit(di)</li>
+                                <li>Commitments are <strong>additively homomorphic</strong>: Commit(a) x Commit(b) =
                                     Commit(a+b)</li>
                                 <li>Coordinator multiplies all commitments together</li>
                                 <li>Utility verifies: decrypted sum matches the aggregate commitment</li>
                             </ul>
 
-                            <h4>✅ Why This Is Novel</h4>
+                            <h4>Why This Is Novel</h4>
                             <ul>
                                 <li>Detects any coordinator manipulation with probability 1</li>
                                 <li>Commitments are computationally hiding (reveal nothing about values)</li>
@@ -421,7 +421,7 @@
 
             <!-- System Architecture -->
             <div class="panel info-panel">
-                <h2>🏗️ Security Model</h2>
+                <h2><span class="icon-structure"></span> Security Model</h2>
                 <div class="security-table">
                     <table>
                         <thead>
@@ -434,28 +434,28 @@
                         </thead>
                         <tbody>
                             <tr>
-                                <td>🏠 Household</td>
+                                <td>[H] Household</td>
                                 <td>Self</td>
                                 <td>Own plaintext demand</td>
                                 <td>Only their own data</td>
                             </tr>
                             <tr>
-                                <td>🏘️ Other Households</td>
+                                <td>[H+] Other Households</td>
                                 <td class="untrusted">Untrusted</td>
                                 <td>Nothing</td>
                                 <td>Nothing</td>
                             </tr>
                             <tr>
-                                <td>⬡ Coordinator</td>
+                                <td>[C] Coordinator</td>
                                 <td class="semi">Honest-but-curious</td>
-                                <td>Only ciphertexts E(dᵢ)</td>
+                                <td>Only ciphertexts E(di)</td>
                                 <td class="highlight-green">Nothing (no secret key)</td>
                             </tr>
                             <tr>
-                                <td>⚡ Utility Company</td>
+                                <td>[U] Utility Company</td>
                                 <td class="trusted">Trusted</td>
                                 <td>Decrypted aggregates only</td>
-                                <td>Total & average demand</td>
+                                <td>Total &amp; average demand</td>
                             </tr>
                         </tbody>
                     </table>
@@ -465,7 +465,7 @@
 
         <!-- Security Logs -->
         <div class="panel">
-            <h2>📋 Security Audit Log</h2>
+            <h2><span class="icon-list"></span> Security Audit Log</h2>
             <div class="log-header">
                 <span class="log-legend"><span class="dot green"></span> Encrypted Operation</span>
                 <span class="log-legend"><span class="dot yellow"></span> Agent Local</span>

@@ -435,6 +435,75 @@ class SmartGridFHE:
         enc_result.metadata['operation'] = 'ciphertext_multiplication'
         return enc_result
     
+    def compute_elementwise_product(self,
+                                  enc_a: EncryptedDemand,
+                                  enc_b: EncryptedDemand) -> EncryptedDemand:
+        """
+        Compute element-wise product of two encrypted vectors.
+        E(a) * E(b) = E([a1*b1, a2*b2, ...])
+        """
+        return self.multiply_encrypted(enc_a, enc_b)
+
+    def compute_dot_product(self,
+                          enc_a: EncryptedDemand,
+                          enc_b: EncryptedDemand) -> EncryptedDemand:
+        """
+        Compute dot product of two encrypted vectors.
+        E(a) . E(b) = E(sum(ai * bi))
+        
+        Note: This consumes one multiplication depth.
+        """
+        vec_a = self._load_encrypted(enc_a)
+        vec_b = self._load_encrypted(enc_b)
+        
+        # Element-wise multiply
+        product = vec_a * vec_b
+        
+        # Sum all elements
+        result = product.sum()
+        
+        enc_result = self._save_encrypted(result, enc_a, "dot_product")
+        enc_result.metadata['operation'] = 'dot_product'
+        enc_result.metadata['operand_b'] = enc_b.agent_id
+        return enc_result
+
+    def rotate_encrypted(self, 
+                        encrypted: EncryptedDemand, 
+                        steps: int) -> EncryptedDemand:
+        """
+        Rotate the encrypted vector cyclically using Matrix Multiplication.
+        
+        Args:
+            encrypted: Vector to rotate
+            steps: Number of steps to rotate left (positive)
+            
+        Returns:
+            EncryptedDemand with rotated vector
+        """
+        vec = self._load_encrypted(encrypted)
+        n = encrypted.vector_size
+        
+        if n > 100:
+            raise NotImplementedError("Rotation via matmul only supported for small vectors (n<=100)")
+            
+        # Create permutation matrix for v * M rotation
+        # We want out[j] = in[(j + steps) % n]
+        # (v * M)[j] = sum(v[i] * M[i,j])
+        # So M[i,j] = 1 where i == (j + steps) % n
+        
+        M = np.zeros((n, n))
+        for j in range(n):
+            i = (j + steps) % n
+            M[i, j] = 1.0
+            
+        # Perform matrix multiplication
+        # Note: TenSEAL matmul expects list of lists
+        result = vec.matmul(M.tolist())
+        
+        enc_result = self._save_encrypted(result, encrypted, f"rotate_{steps}")
+        enc_result.metadata['rotation'] = steps
+        return enc_result
+    
     def compute_reduction_factor(self, 
                                   encrypted_total: EncryptedDemand,
                                   capacity_limit: float) -> EncryptedDemand:

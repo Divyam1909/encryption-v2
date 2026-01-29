@@ -309,12 +309,16 @@ class EncryptedVectorGUI:
                 except Exception as e:
                     print(f"Failed at step {i}: {e}")
                     # If we hit scale limit or decryption failure, fill remaining with high error
-                    for _ in range(i, depth + 1):
+                    for k in range(i, depth + 1):
                         errors.append(1e10) # Large value for plot
+                        x_axis.append(k)
+                    
+                    # Final update
+                    self.root.after(10, self.update_plot, list(x_axis), list(errors))
                     break
                 
                 x_axis.append(i)
-                self.root.after(10, self.update_plot, x_axis, errors)
+                self.root.after(10, self.update_plot, list(x_axis), list(errors))
             
             self.status_var.set("Stress Test Complete.")
             

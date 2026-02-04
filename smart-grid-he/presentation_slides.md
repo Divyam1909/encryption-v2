@@ -94,7 +94,32 @@
 
 ---
 
-# Slide 10: Future Scope
+# Slide 10: Limitations & Trade-offs
+**1. Leveled Homomorphic Encryption (LHE)**
+- We used CKKS in a "Leveled" mode.
+- **Drawback:** Operations consume "Noise Budget".
+- **Impact:** After ~5-10 sequential multiplications (Depth), the noise overwhelms the signal (as seen in our Stress Test).
+- **Mitigation:** Requires "Bootstrapping" (refreshing noise) which is computationally expensive (slow).
+
+**2. Computation Overhead**
+- Encrypted addition is fast, but multiplication is slower (~10-100x vs plaintext).
+- **Impact:** Not yet suitable for high-frequency trading or millisecond-latency gaming.
+- **Conclusion:** Perfect for "near-real-time" (Smart Grid: 15min intervals) but not "instant" applications.
+
+---
+
+# Slide 11: Final Conclusion
+**We have demonstrated:**
+1.  **Zero-Trust Mathematics:** Performing vector algebra ($A \times B$) without ever seeing $A$ or $B$.
+2.  **Practical Accuracy:** Achieving scientific precision ($10^{-5}$ error) suitable for engineering.
+3.  **Resilience:** The system is robust within its defined operational depth.
+
+**The Verdict:**
+Homomorphic Encryption has moved from "Theoretical Curiosity" to **"Practical Reality"**. It is ready to solve the privacy-utility paradox in Critical Infrastructure protection.
+
+---
+
+# Slide 12: Future Scope
 - **Machine Learning:** Extending Dot Product to full Neural Networks (Encrypted Inference).
 - **Multi-Key FHE:** allowing multiple distinct parties to compute together without sharing keys.
 - **Hardware Acceleration:** Running TenSEAL on GPUs for massive scale.

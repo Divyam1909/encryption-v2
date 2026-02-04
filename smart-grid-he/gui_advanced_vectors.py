@@ -1,13 +1,15 @@
 import tkinter as tk
-from tkinter import ttk, messagebox
+from tkinter import ttk, messagebox, scrolledtext
 import numpy as np
 import threading
+import time
 import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-from core.fhe_engine import SmartGridFHE
+from core.fhe_engine import SmartGridFHE, EncryptedDemand
 from core.secure_linear_algebra import SecureLinearAlgebra
+
 
 class EncryptedVectorGUI:
     def __init__(self, root):
@@ -105,75 +107,235 @@ class EncryptedVectorGUI:
 
     # --- TAB 2: MATRIX TRANSFORM ---
     def build_matrix_tab(self):
-        container = ttk.Frame(self.tab_matrix, padding="20")
+        container = ttk.Frame(self.tab_matrix, padding="10")
         container.pack(fill=tk.BOTH, expand=True)
+        
+        # Title
+        title = ttk.Label(container, text="Fully Homomorphic Matrix-Vector Operations", 
+                         font=('Helvetica', 12, 'bold'))
+        title.pack(pady=(0, 10))
 
-        # Controls
-        ctrl_frame = ttk.Frame(container)
+        # Top controls frame
+        ctrl_frame = ttk.LabelFrame(container, text="Matrix Dimensions", padding="10")
         ctrl_frame.pack(fill=tk.X, pady=5)
         
-        ttk.Label(ctrl_frame, text="Dimension:").pack(side=tk.LEFT)
-        self.dim_var = tk.IntVar(value=3)
-        self.dim_combo = ttk.Combobox(ctrl_frame, textvariable=self.dim_var, values=[2, 3, 4], width=5, state="readonly")
-        self.dim_combo.pack(side=tk.LEFT, padx=5)
-        self.dim_combo.bind("<<ComboboxSelected>>", self.update_matrix_grid)
-
-        # Matrix/Vector Container
-        self.mv_container = ttk.Frame(container)
-        self.mv_container.pack(fill=tk.BOTH, expand=True)
+        dim_row = ttk.Frame(ctrl_frame)
+        dim_row.pack(fill=tk.X)
         
-        self.update_matrix_grid() # Initial build
+        ttk.Label(dim_row, text="Rows:").pack(side=tk.LEFT, padx=(0, 5))
+        self.rows_var = tk.IntVar(value=3)
+        self.rows_spin = ttk.Spinbox(dim_row, from_=1, to=10, textvariable=self.rows_var, width=5,
+                                      command=self.update_matrix_grid)
+        self.rows_spin.pack(side=tk.LEFT, padx=(0, 15))
+        self.rows_spin.bind('<Return>', self.update_matrix_grid)
+        
+        ttk.Label(dim_row, text="Columns:").pack(side=tk.LEFT, padx=(0, 5))
+        self.cols_var = tk.IntVar(value=3)
+        self.cols_spin = ttk.Spinbox(dim_row, from_=1, to=10, textvariable=self.cols_var, width=5,
+                                      command=self.update_matrix_grid)
+        self.cols_spin.pack(side=tk.LEFT, padx=(0, 15))
+        self.cols_spin.bind('<Return>', self.update_matrix_grid)
+        
+        ttk.Button(dim_row, text="Update Grid", command=self.update_matrix_grid).pack(side=tk.LEFT, padx=10)
+        
+        # Operation type selector
+        op_frame = ttk.LabelFrame(container, text="Operation Type", padding="10")
+        op_frame.pack(fill=tk.X, pady=5)
+        
+        self.matrix_op_var = tk.StringVar(value="matrix_vector")
+        ops = [
+            ("Matrix-Vector Multiply (M @ v)", "matrix_vector"),
+            ("Vector-Vector Element-wise (E(a) * E(b))", "vector_elementwise"),
+            ("Vector Dot Product (E(a) . E(b))", "vector_dot"),
+        ]
+        for text, value in ops:
+            ttk.Radiobutton(op_frame, text=text, variable=self.matrix_op_var, 
+                           value=value, command=self.on_operation_change).pack(anchor=tk.W)
 
-        # Action
-        self.btn_calc_matrix = ttk.Button(container, text="Encrypt & Transform", command=self.run_matrix_transform, state="disabled")
-        self.btn_calc_matrix.pack(pady=10)
+        # Input container (will hold matrix and vector inputs)
+        self.mv_container = ttk.Frame(container)
+        self.mv_container.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        self.update_matrix_grid()  # Initial build
 
-        # Output
-        self.out_matrix = tk.Text(container, height=10, width=60)
+        # Action buttons
+        btn_frame = ttk.Frame(container)
+        btn_frame.pack(fill=tk.X, pady=5)
+        
+        self.btn_calc_matrix = ttk.Button(btn_frame, text="Encrypt & Compute (Fully Homomorphic)", 
+                                          command=self.run_matrix_transform, state="disabled")
+        self.btn_calc_matrix.pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(btn_frame, text="Clear Output", command=self.clear_matrix_output).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Button(btn_frame, text="Load Example", command=self.load_matrix_example).pack(side=tk.LEFT, padx=5)
+
+        # Output with steps
+        out_frame = ttk.LabelFrame(container, text="Computation Steps & Results", padding="5")
+        out_frame.pack(fill=tk.BOTH, expand=True, pady=5)
+        
+        self.out_matrix = scrolledtext.ScrolledText(out_frame, height=12, width=70, wrap=tk.WORD)
         self.out_matrix.pack(fill=tk.BOTH, expand=True)
+        
+        # Configure text tags for formatting
+        self.out_matrix.tag_configure('step', foreground='blue', font=('Courier', 9, 'bold'))
+        self.out_matrix.tag_configure('result', foreground='green', font=('Courier', 10, 'bold'))
+        self.out_matrix.tag_configure('error_tag', foreground='red')
+        self.out_matrix.tag_configure('header', foreground='purple', font=('Courier', 10, 'bold'))
+
+    def on_operation_change(self):
+        """Handle operation type change."""
+        self.update_matrix_grid()
+    
+    def clear_matrix_output(self):
+        """Clear the output text."""
+        self.out_matrix.delete(1.0, tk.END)
+    
+    def load_matrix_example(self):
+        """Load an example based on current operation."""
+        op = self.matrix_op_var.get()
+        
+        if op == "matrix_vector":
+            # 3x3 rotation matrix example
+            self.rows_var.set(3)
+            self.cols_var.set(3)
+            self.update_matrix_grid()
+            
+            # Set rotation matrix (45 degrees around Z axis)
+            import math
+            angle = math.pi / 4
+            rotation = [
+                [math.cos(angle), -math.sin(angle), 0],
+                [math.sin(angle), math.cos(angle), 0],
+                [0, 0, 1]
+            ]
+            for i, row in enumerate(rotation):
+                for j, val in enumerate(row):
+                    self.matrix_entries[i][j].delete(0, tk.END)
+                    self.matrix_entries[i][j].insert(0, f"{val:.4f}")
+            
+            # Set vector
+            vector = [1.0, 0.0, 0.0]
+            for i, val in enumerate(vector):
+                self.entry_v[i].delete(0, tk.END)
+                self.entry_v[i].insert(0, str(val))
+                
+        elif op in ["vector_elementwise", "vector_dot"]:
+            self.cols_var.set(4)
+            self.update_matrix_grid()
+            
+            vec_a = [1.0, 2.0, 3.0, 4.0]
+            vec_b = [2.0, 3.0, 4.0, 5.0]
+            
+            for i, val in enumerate(vec_a):
+                self.entry_v[i].delete(0, tk.END)
+                self.entry_v[i].insert(0, str(val))
+            for i, val in enumerate(vec_b):
+                self.entry_v2[i].delete(0, tk.END)
+                self.entry_v2[i].insert(0, str(val))
 
     def update_matrix_grid(self, event=None):
+        """Update the input grid based on selected dimensions and operation."""
         # Clear previous
         for widget in self.mv_container.winfo_children():
             widget.destroy()
 
-        dim = self.dim_var.get()
-
-        # Vector Input
-        v_frame = ttk.LabelFrame(self.mv_container, text=f"Input Vector ({dim}D)", padding="10")
-        v_frame.pack(fill=tk.X, pady=5)
+        rows = self.rows_var.get()
+        cols = self.cols_var.get()
+        op = self.matrix_op_var.get()
         
-        self.entry_v = []
-        for i in range(dim):
-            e = ttk.Entry(v_frame, width=8)
-            e.insert(0, "1.0") # Default
-            e.pack(side=tk.LEFT, padx=2)
-            self.entry_v.append(e)
+        if op == "matrix_vector":
+            # Matrix input
+            m_frame = ttk.LabelFrame(self.mv_container, text=f"Matrix ({rows}x{cols}) - Plaintext", padding="10")
+            m_frame.pack(fill=tk.X, pady=5)
+            
+            # Column headers
+            header_frame = ttk.Frame(m_frame)
+            header_frame.pack()
+            ttk.Label(header_frame, text="", width=3).pack(side=tk.LEFT)
+            for c in range(cols):
+                ttk.Label(header_frame, text=f"c{c+1}", width=8).pack(side=tk.LEFT)
+            
+            self.matrix_entries = []
+            for r in range(rows):
+                row_frame = ttk.Frame(m_frame)
+                row_frame.pack()
+                ttk.Label(row_frame, text=f"r{r+1}", width=3).pack(side=tk.LEFT)
+                row_entries = []
+                for c in range(cols):
+                    e = ttk.Entry(row_frame, width=8)
+                    val = "1.0" if r == c else "0.0"
+                    e.insert(0, val)
+                    e.pack(side=tk.LEFT, padx=2, pady=1)
+                    row_entries.append(e)
+                self.matrix_entries.append(row_entries)
 
-        # Matrix Input
-        m_frame = ttk.LabelFrame(self.mv_container, text=f"Transformation Matrix ({dim}x{dim})", padding="10")
-        m_frame.pack(fill=tk.X, pady=5)
-
-        self.matrix_entries = []
-        # Identity matrix default
-        for r in range(dim):
-            row_entries = []
-            frame_row = ttk.Frame(m_frame)
-            frame_row.pack()
-            for c in range(dim):
-                e = ttk.Entry(frame_row, width=8)
-                val = "1.0" if r == c else "0.0"
-                e.insert(0, val)
-                e.pack(side=tk.LEFT, padx=2, pady=2)
-                row_entries.append(e)
-            self.matrix_entries.append(row_entries)
+            # Vector input
+            v_frame = ttk.LabelFrame(self.mv_container, text=f"Input Vector ({cols}D) - Will be ENCRYPTED", padding="10")
+            v_frame.pack(fill=tk.X, pady=5)
+            
+            self.entry_v = []
+            for i in range(cols):
+                frame = ttk.Frame(v_frame)
+                frame.pack(side=tk.LEFT, padx=2)
+                ttk.Label(frame, text=f"v{i+1}").pack()
+                e = ttk.Entry(frame, width=8)
+                e.insert(0, "1.0")
+                e.pack()
+                self.entry_v.append(e)
+                
+            # Info label
+            info = ttk.Label(self.mv_container, 
+                           text="Result = M @ E(v) computed homomorphically. Matrix is plaintext, vector is encrypted.",
+                           font=('Helvetica', 9, 'italic'))
+            info.pack(pady=5)
+            
+        elif op in ["vector_elementwise", "vector_dot"]:
+            # Two vector inputs for vector-vector operations
+            size = cols  # Use cols as vector size
+            
+            # Vector A
+            va_frame = ttk.LabelFrame(self.mv_container, text=f"Vector A ({size}D) - ENCRYPTED", padding="10")
+            va_frame.pack(fill=tk.X, pady=5)
+            
+            self.entry_v = []
+            for i in range(size):
+                frame = ttk.Frame(va_frame)
+                frame.pack(side=tk.LEFT, padx=2)
+                ttk.Label(frame, text=f"a{i+1}").pack()
+                e = ttk.Entry(frame, width=8)
+                e.insert(0, str(i + 1.0))
+                e.pack()
+                self.entry_v.append(e)
+            
+            # Vector B
+            vb_frame = ttk.LabelFrame(self.mv_container, text=f"Vector B ({size}D) - ENCRYPTED", padding="10")
+            vb_frame.pack(fill=tk.X, pady=5)
+            
+            self.entry_v2 = []
+            for i in range(size):
+                frame = ttk.Frame(vb_frame)
+                frame.pack(side=tk.LEFT, padx=2)
+                ttk.Label(frame, text=f"b{i+1}").pack()
+                e = ttk.Entry(frame, width=8)
+                e.insert(0, str(i + 2.0))
+                e.pack()
+                self.entry_v2.append(e)
+            
+            # Info label
+            if op == "vector_elementwise":
+                info_text = "Result = E(a) * E(b) = E([a1*b1, a2*b2, ...]) - True ciphertext-ciphertext multiplication"
+            else:
+                info_text = "Result = E(a) . E(b) = E(sum(ai*bi)) - Homomorphic dot product"
+            info = ttk.Label(self.mv_container, text=info_text, font=('Helvetica', 9, 'italic'))
+            info.pack(pady=5)
 
     # --- TAB 3: NOISE DEMO ---
     def build_noise_tab(self):
         container = ttk.Frame(self.tab_noise, padding="20")
         container.pack(fill=tk.BOTH, expand=True)
 
-        intro = ttk.Label(container, text="Demonstrate 'Leveled' Homomorphic Encryption:\nMultiply a vector repeatedly until noise overwhelms the signal.", justify=tk.CENTER)
+        intro = ttk.Label(container, text="Demonstrate 'Leveled' Homomorphic Encryption:\nMultiply a vector repeatedly until noise overwhelms the signal.\nThe coefficient modulus chain determines how many multiplications are possible.", justify=tk.CENTER)
         intro.pack(pady=10)
 
         ctrl = ttk.Frame(container)
@@ -182,6 +344,14 @@ class EncryptedVectorGUI:
         ttk.Label(ctrl, text="Multiplications:").pack(side=tk.LEFT)
         self.mult_depth = tk.IntVar(value=10)
         ttk.Spinbox(ctrl, from_=1, to=50, textvariable=self.mult_depth, width=5).pack(side=tk.LEFT, padx=5)
+        
+        ttk.Label(ctrl, text="  FHE Depth:").pack(side=tk.LEFT, padx=(10, 0))
+        self.fhe_depth_var = tk.StringVar(value="standard")
+        depth_combo = ttk.Combobox(ctrl, textvariable=self.fhe_depth_var, 
+                                    values=["shallow (3-4 mults)", "standard (5-6 mults)", "deep (8-10 mults)", "very deep (12-15 mults)"],
+                                    width=18, state="readonly")
+        depth_combo.pack(side=tk.LEFT, padx=5)
+        depth_combo.current(1)  # Default to standard
 
         self.btn_run_stress = ttk.Button(ctrl, text="Run Stress Test", command=self.run_stress_test, state="disabled")
         self.btn_run_stress.pack(side=tk.LEFT, padx=10)
@@ -239,40 +409,212 @@ class EncryptedVectorGUI:
             messagebox.showerror("Error", str(e))
 
     def run_matrix_transform(self):
+        """Execute fully homomorphic matrix/vector operation with detailed step logging."""
+        threading.Thread(target=self._matrix_transform_worker, daemon=True).start()
+    
+    def _matrix_transform_worker(self):
+        """Worker thread for matrix operations using project's SmartGridFHE."""
         try:
-            dim = self.dim_var.get()
-            V = [float(e.get()) for e in self.entry_v]
+            op = self.matrix_op_var.get()
+            rows = self.rows_var.get()
+            cols = self.cols_var.get()
             
-            M = []
-            for r in range(dim):
-                row = []
-                for c in range(dim):
-                    row.append(float(self.matrix_entries[r][c].get()))
-                M.append(row)
+            # Clear output
+            self.root.after(0, lambda: self.out_matrix.delete(1.0, tk.END))
             
-            self.out_matrix.delete(1.0, tk.END)
-            self.log_matrix(f"Matrix ({dim}x{dim}): Input {V}")
+            # Use project's SmartGridFHE with standard parameters
+            # poly_modulus_degree=16384, coeff_mod=[60, 40, 40, 40, 60] as per project docs
+            self.status_var.set("Initializing SmartGridFHE (CKKS, 128-bit security)...")
+            self.root.update_idletasks()
             
-            # Plaintext
-            expected = np.dot(M, V)
-            self.log_matrix(f"Expected: {expected}")
+            # Create utility (has secret key for decryption) and coordinator (public only)
+            utility = SmartGridFHE()  # Has secret key
+            public_ctx = utility.get_public_context()
+            coordinator = SmartGridFHE.from_context(public_ctx)  # Public only - cannot decrypt
+            algebra = SecureLinearAlgebra(coordinator)
             
-            # Encrypted
-            self.status_var.set("Computing...")
-            self.root.update()
+            def log_step(msg):
+                """Thread-safe logging."""
+                self.root.after(0, lambda m=msg: self._append_matrix_log(m, 'step'))
             
-            enc_V = self.coordinator.encrypt_demand(V, "v")
-            enc_res = self.algebra.linear_transform_encrypted(M, enc_V)
+            if op == "matrix_vector":
+                # Matrix-Vector multiplication using project's linear_transform_encrypted
+                V = [float(e.get()) for e in self.entry_v]
+                M = []
+                for r in range(rows):
+                    row = [float(self.matrix_entries[r][c].get()) for c in range(cols)]
+                    M.append(row)
+                
+                # Log header with project-specific info
+                self.root.after(0, lambda: self._append_matrix_log(
+                    "=" * 60 + "\nFULLY HOMOMORPHIC MATRIX-VECTOR MULTIPLICATION\n" + 
+                    "Using SmartGridFHE (CKKS Scheme)\n" + "=" * 60, 'header'))
+                self.root.after(0, lambda: self._append_matrix_log(
+                    f"\nSecurity: 128-bit | poly_modulus_degree: 16384 | scale: 2^40", 'step'))
+                self.root.after(0, lambda: self._append_matrix_log(f"\nMatrix ({rows}x{cols}) [Plaintext]:", 'header'))
+                for i, row in enumerate(M):
+                    self.root.after(0, lambda r=row, i=i: self._append_matrix_log(f"  Row {i+1}: {[f'{x:.4f}' for x in r]}"))
+                self.root.after(0, lambda: self._append_matrix_log(f"\nInput Vector [Will be ENCRYPTED]: {V}", 'header'))
+                
+                # Compute expected result
+                expected = np.dot(M, V)
+                self.root.after(0, lambda: self._append_matrix_log(f"Expected (plaintext computation): {expected.tolist()}\n"))
+                
+                self.root.after(0, lambda: self._append_matrix_log("\n--- HOMOMORPHIC COMPUTATION STEPS ---\n", 'header'))
+                
+                # Step 1: Encrypt vector using coordinator's public context
+                self.status_var.set("Step 1: Encrypting input vector...")
+                log_step("Step 1: Household encrypts vector using PUBLIC context")
+                log_step("        (Only utility company with SECRET key can decrypt)")
+                enc_V: EncryptedDemand = coordinator.encrypt_demand(V, "input_vector")
+                log_step(f"        Ciphertext size: {enc_V.get_size_kb():.1f} KB")
+                log_step(f"        Checksum: {enc_V.checksum}")
+                time.sleep(0.1)
+                
+                # Step 2: Matrix multiplication using SecureLinearAlgebra
+                self.status_var.set("Step 2: Homomorphic matrix multiplication...")
+                log_step("\nStep 2: Coordinator performs M @ E(v) homomorphically")
+                log_step("        Using TenSEAL's matmul on encrypted CKKS vector")
+                log_step("        Operation: v_encrypted.matmul(M.T)")
+                
+                enc_result: EncryptedDemand = algebra.linear_transform_encrypted(M, enc_V)
+                log_step(f"        Result ciphertext size: {enc_result.get_size_kb():.1f} KB")
+                time.sleep(0.1)
+                
+                # Step 3: Decrypt using utility's secret key
+                self.status_var.set("Step 3: Decrypting result...")
+                log_step("\nStep 3: Utility company decrypts result (has SECRET key)")
+                decrypted = utility.decrypt_demand(enc_result)[:rows]
+                
+                self.root.after(0, lambda: self._append_matrix_log("\n--- RESULTS ---\n", 'header'))
+                self.root.after(0, lambda: self._append_matrix_log(f"Decrypted Result: {[f'{x:.6f}' for x in decrypted]}", 'result'))
+                self.root.after(0, lambda: self._append_matrix_log(f"Expected Result:  {[f'{x:.6f}' for x in expected.tolist()]}", 'result'))
+                
+                error = np.linalg.norm(np.array(decrypted) - expected)
+                self.root.after(0, lambda: self._append_matrix_log(f"Numerical Error:  {error:.2e} (CKKS approximate arithmetic)", 'result'))
+                
+            elif op == "vector_elementwise":
+                # Vector-vector element-wise multiplication using compute_elementwise_product
+                V1 = [float(e.get()) for e in self.entry_v]
+                V2 = [float(e.get()) for e in self.entry_v2]
+                size = len(V1)
+                
+                self.root.after(0, lambda: self._append_matrix_log(
+                    "=" * 60 + "\nFULLY HOMOMORPHIC ELEMENT-WISE MULTIPLICATION\n" +
+                    "E(a) * E(b) = E(a * b) - Ciphertext × Ciphertext\n" + "=" * 60, 'header'))
+                self.root.after(0, lambda: self._append_matrix_log(
+                    f"\nSecurity: 128-bit | poly_modulus_degree: 16384 | scale: 2^40", 'step'))
+                self.root.after(0, lambda: self._append_matrix_log(f"\nVector A [ENCRYPTED]: {V1}", 'header'))
+                self.root.after(0, lambda: self._append_matrix_log(f"Vector B [ENCRYPTED]: {V2}", 'header'))
+                
+                expected = np.array(V1) * np.array(V2)
+                self.root.after(0, lambda: self._append_matrix_log(f"Expected (plaintext): {expected.tolist()}\n"))
+                
+                self.root.after(0, lambda: self._append_matrix_log("\n--- HOMOMORPHIC COMPUTATION STEPS ---\n", 'header'))
+                
+                # Step 1: Encrypt both vectors
+                self.status_var.set("Step 1: Encrypting vectors...")
+                log_step("Step 1: Agent A encrypts vector A using PUBLIC context")
+                enc_a: EncryptedDemand = coordinator.encrypt_demand(V1, "vector_a")
+                log_step(f"        E(a) ciphertext: {enc_a.get_size_kb():.1f} KB")
+                time.sleep(0.1)
+                
+                log_step("\nStep 2: Agent B encrypts vector B using PUBLIC context")
+                enc_b: EncryptedDemand = coordinator.encrypt_demand(V2, "vector_b")
+                log_step(f"        E(b) ciphertext: {enc_b.get_size_kb():.1f} KB")
+                time.sleep(0.1)
+                
+                # Step 2: Homomorphic multiplication (ciphertext * ciphertext)
+                self.status_var.set("Step 3: Computing E(a) * E(b)...")
+                log_step("\nStep 3: Homomorphic ciphertext-ciphertext multiplication")
+                log_step("        E(a) × E(b) = E(a × b)")
+                log_step("        Auto-relinearization reduces ciphertext size")
+                log_step("        Auto-rescaling manages noise growth")
+                
+                enc_result: EncryptedDemand = coordinator.compute_elementwise_product(enc_a, enc_b)
+                log_step(f"        Result ciphertext: {enc_result.get_size_kb():.1f} KB")
+                time.sleep(0.1)
+                
+                # Step 3: Decrypt
+                self.status_var.set("Step 4: Decrypting result...")
+                log_step("\nStep 4: Utility decrypts result (SECRET key required)")
+                decrypted = utility.decrypt_demand(enc_result)[:size]
+                
+                self.root.after(0, lambda: self._append_matrix_log("\n--- RESULTS ---\n", 'header'))
+                self.root.after(0, lambda: self._append_matrix_log(f"Decrypted Result: {[f'{x:.6f}' for x in decrypted]}", 'result'))
+                self.root.after(0, lambda: self._append_matrix_log(f"Expected Result:  {[f'{x:.6f}' for x in expected.tolist()]}", 'result'))
+                
+                error = np.linalg.norm(np.array(decrypted) - expected)
+                self.root.after(0, lambda: self._append_matrix_log(f"Numerical Error:  {error:.2e}", 'result'))
+                
+            elif op == "vector_dot":
+                # Vector dot product using compute_dot_product
+                V1 = [float(e.get()) for e in self.entry_v]
+                V2 = [float(e.get()) for e in self.entry_v2]
+                size = len(V1)
+                
+                self.root.after(0, lambda: self._append_matrix_log(
+                    "=" * 60 + "\nFULLY HOMOMORPHIC DOT PRODUCT\n" +
+                    "E(a) · E(b) = E(Σ aᵢ×bᵢ)\n" + "=" * 60, 'header'))
+                self.root.after(0, lambda: self._append_matrix_log(
+                    f"\nSecurity: 128-bit | poly_modulus_degree: 16384 | scale: 2^40", 'step'))
+                self.root.after(0, lambda: self._append_matrix_log(f"\nVector A [ENCRYPTED]: {V1}", 'header'))
+                self.root.after(0, lambda: self._append_matrix_log(f"Vector B [ENCRYPTED]: {V2}", 'header'))
+                
+                expected = np.dot(V1, V2)
+                self.root.after(0, lambda: self._append_matrix_log(f"Expected (plaintext): {expected}\n"))
+                
+                self.root.after(0, lambda: self._append_matrix_log("\n--- HOMOMORPHIC COMPUTATION STEPS ---\n", 'header'))
+                
+                # Step 1: Encrypt both vectors
+                self.status_var.set("Step 1: Encrypting vectors...")
+                log_step("Step 1: Agent A encrypts vector A")
+                enc_a: EncryptedDemand = coordinator.encrypt_demand(V1, "vector_a")
+                log_step(f"        E(a) ciphertext: {enc_a.get_size_kb():.1f} KB")
+                time.sleep(0.1)
+                
+                log_step("\nStep 2: Agent B encrypts vector B")
+                enc_b: EncryptedDemand = coordinator.encrypt_demand(V2, "vector_b")
+                log_step(f"        E(b) ciphertext: {enc_b.get_size_kb():.1f} KB")
+                time.sleep(0.1)
+                
+                # Step 2: Homomorphic dot product
+                self.status_var.set("Step 3: Computing dot product...")
+                log_step("\nStep 3: Homomorphic dot product computation")
+                log_step("        E(a) × E(b) element-wise → E([a₀b₀, a₁b₁, ...])")
+                log_step("        sum(E(a×b)) → E(Σ aᵢbᵢ)")
+                
+                enc_result: EncryptedDemand = coordinator.compute_dot_product(enc_a, enc_b)
+                log_step(f"        Result ciphertext: {enc_result.get_size_kb():.1f} KB")
+                time.sleep(0.1)
+                
+                # Step 3: Decrypt
+                self.status_var.set("Step 4: Decrypting result...")
+                log_step("\nStep 4: Utility decrypts scalar result")
+                decrypted = utility.decrypt_demand(enc_result)[0]
+                
+                self.root.after(0, lambda: self._append_matrix_log("\n--- RESULTS ---\n", 'header'))
+                self.root.after(0, lambda: self._append_matrix_log(f"Decrypted Result: {decrypted:.6f}", 'result'))
+                self.root.after(0, lambda: self._append_matrix_log(f"Expected Result:  {expected:.6f}", 'result'))
+                
+                error = abs(decrypted - expected)
+                self.root.after(0, lambda: self._append_matrix_log(f"Numerical Error:  {error:.2e}", 'result'))
             
-            dec_res = self.utility.decrypt_demand(enc_res)[:dim]
-            self.log_matrix(f"Decrypted: {np.array(dec_res)}")
-            
-            error = np.linalg.norm(dec_res - expected)
-            self.log_matrix(f"Error: {error:.2e}")
-            self.status_var.set("Ready")
+            self.root.after(0, lambda: self._append_matrix_log(
+                "\n\nComputation completed successfully!\n" +
+                "Privacy preserved: Coordinator never saw plaintext values.", 'result'))
+            self.status_var.set("Ready - Computation complete")
 
         except Exception as e:
-             messagebox.showerror("Error", str(e))
+            import traceback
+            error_msg = f"Error: {str(e)}\n{traceback.format_exc()}"
+            self.root.after(0, lambda: self._append_matrix_log(error_msg, 'error_tag'))
+            self.status_var.set(f"Error: {str(e)}")
+    
+    def _append_matrix_log(self, msg, tag=None):
+        """Append message to matrix output with optional formatting."""
+        self.out_matrix.insert(tk.END, msg + "\n", tag)
+        self.out_matrix.see(tk.END)
 
     def run_stress_test(self):
         threading.Thread(target=self._stress_test_worker).start()
@@ -282,48 +624,100 @@ class EncryptedVectorGUI:
             depth = self.mult_depth.get()
             val = 2.0
             
+            # Determine coefficient modulus chain and poly_modulus_degree based on selected depth
+            # Following project's cryptography_guide.md:
+            # - poly_modulus_degree: 8192 or 16384 (128-bit security)
+            # - coeff_mod determines multiplicative depth
+            # - Total bits must be <= max for poly_modulus_degree
+            #   For 8192: max ~218 bits, for 16384: max ~438 bits
+            fhe_depth = self.fhe_depth_var.get()
+            
+            if "shallow" in fhe_depth:
+                # Project default-like: ~2-3 multiplications
+                # Total bits: 60+40+40+60 = 200 <= 218 ✓
+                poly_mod = 8192
+                coeff_mod = [60, 40, 40, 60]
+                max_mults = 2
+            elif "standard" in fhe_depth:
+                # Project's actual default: poly=16384, [60,40,40,40,60] = 260 bits
+                # Supports ~3-4 multiplications
+                poly_mod = 16384
+                coeff_mod = [60, 40, 40, 40, 60]
+                max_mults = 3
+            elif "very deep" in fhe_depth:
+                # Extended depth for research: ~8-9 multiplications
+                # Total bits: 60 + 9*40 + 60 = 480 > 438, need careful selection
+                # Use: 60 + 8*40 + 60 = 440 ≈ 438 (borderline, may work)
+                # Safer: reduce some 40s to 35
+                poly_mod = 16384
+                coeff_mod = [60, 35, 35, 35, 35, 35, 35, 35, 35, 60]  # 370 bits
+                max_mults = 8
+            else:  # deep
+                # Extended: ~5-6 multiplications
+                # Total bits: 60 + 6*40 + 60 = 360 <= 438 ✓
+                poly_mod = 16384
+                coeff_mod = [60, 40, 40, 40, 40, 40, 40, 60]
+                max_mults = 6
+            
+            total_bits = sum(coeff_mod)
+            self.status_var.set(f"Initializing FHE: poly_mod={poly_mod}, ~{max_mults} mult depth, {total_bits} total bits...")
+            
+            # Create a new FHE engine with the selected parameters for stress test
+            stress_utility = SmartGridFHE(poly_modulus_degree=poly_mod, coeff_mod_bit_sizes=coeff_mod)
+            
             # Encrypt initial value
-            enc = self.utility.encrypt_demand([val], "stress")
+            enc = stress_utility.encrypt_demand([val], "stress")
             
             errors = []
             x_axis = []
             
             curr_enc = enc
             curr_expected = val
+            failed_at = None  # Track where we failed
             
             for i in range(1, depth + 1):
                 self.status_var.set(f"Stress Test: Multiplication {i}/{depth}...")
                 
-                try:
-                    # Perform Multiplication
-                    # We use multiply_plain with 1.0. This consumes depth (rescale) 
-                    # but keeps value stable.
-                    # Repeatedly doing this eventually exhausts the coefficient modulus chain.
-                    curr_enc = self.utility.multiply_plain(curr_enc, 1.0)
-                    
-                    # Decrypt to check error
-                    res = self.utility.decrypt_demand(curr_enc)[0]
-                    err = abs(res - curr_expected)
-                    errors.append(err + 1e-15) # Avoid log(0)
-                    
-                except Exception as e:
-                    print(f"Failed at step {i}: {e}")
-                    # If we hit scale limit or decryption failure, fill remaining with high error
-                    for k in range(i, depth + 1):
-                        errors.append(1e10) # Large value for plot
-                        x_axis.append(k)
-                    
-                    # Final update
-                    self.root.after(10, self.update_plot, list(x_axis), list(errors))
-                    break
+                if failed_at is None:
+                    try:
+                        # Perform Multiplication
+                        # We use multiply_plain with 1.0. This consumes depth (rescale) 
+                        # but keeps value stable.
+                        # Repeatedly doing this eventually exhausts the coefficient modulus chain.
+                        curr_enc = stress_utility.multiply_plain(curr_enc, 1.0)
+                        
+                        # Decrypt to check error
+                        res = stress_utility.decrypt_demand(curr_enc)[0]
+                        err = abs(res - curr_expected)
+                        errors.append(err + 1e-15) # Avoid log(0)
+                        x_axis.append(i)
+                        
+                    except Exception as e:
+                        print(f"Failed at step {i}: {e}")
+                        failed_at = i
+                        # Add the failure point with high error
+                        errors.append(1e10)  # Large value for plot to indicate failure
+                        x_axis.append(i)
+                else:
+                    # Already failed - continue filling with high error values
+                    # to show the complete requested depth range
+                    errors.append(1e10)
+                    x_axis.append(i)
                 
-                x_axis.append(i)
+                # Update plot after each iteration (whether successful or not)
                 self.root.after(10, self.update_plot, list(x_axis), list(errors))
+                
+                # Small delay to allow GUI to update and show progress
+                time.sleep(0.05)
             
-            self.status_var.set("Stress Test Complete.")
+            if failed_at:
+                self.status_var.set(f"Stress Test Complete. Noise exhausted at multiplication {failed_at}.")
+            else:
+                self.status_var.set("Stress Test Complete.")
             
         except Exception as e:
             print(f"Stress error: {e}")
+            self.status_var.set(f"Stress Test Error: {e}")
 
     def update_plot(self, x, y):
         self.ax.clear()
@@ -331,8 +725,43 @@ class EncryptedVectorGUI:
         self.ax.set_xlabel("Operations")
         self.ax.set_ylabel("Error (Log Scale)")
         self.ax.set_yscale("log")
-        self.ax.plot(x, y, 'b-o')
-        self.ax.grid(True)
+        
+        # Separate successful operations from failed ones
+        success_x = []
+        success_y = []
+        fail_x = []
+        fail_y = []
+        
+        for xi, yi in zip(x, y):
+            if yi >= 1e9:  # Failed operations (high error marker)
+                fail_x.append(xi)
+                fail_y.append(yi)
+            else:
+                success_x.append(xi)
+                success_y.append(yi)
+        
+        # Plot successful operations in blue
+        if success_x:
+            self.ax.plot(success_x, success_y, 'b-o', label='Successful', markersize=6)
+        
+        # Plot failed operations in red
+        if fail_x:
+            self.ax.plot(fail_x, fail_y, 'r-x', label='Noise Exhausted', markersize=8, linewidth=2)
+            
+            # Add a vertical line at the failure point
+            if success_x:
+                failure_point = min(fail_x)
+                self.ax.axvline(x=failure_point, color='red', linestyle='--', alpha=0.5, 
+                               label=f'Noise limit (~{failure_point-1} mults)')
+        
+        self.ax.grid(True, alpha=0.3)
+        self.ax.legend(loc='upper left', fontsize=8)
+        
+        # Set y-axis limits for better visualization
+        if success_y:
+            min_err = min(success_y)
+            self.ax.set_ylim(min_err * 0.1, 1e12)
+        
         self.canvas.draw()
 
 if __name__ == "__main__":

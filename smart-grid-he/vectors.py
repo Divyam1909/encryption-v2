@@ -1,9 +1,9 @@
 import tkinter as tk
-from tkinter import ttk, messagebox, scrolledtext
+from tkinter import ttk, scrolledtext
 import numpy as np
 import threading
 import time
-from typing import List
+from typing import Dict, List
 import matplotlib
 matplotlib.use("TkAgg")
 from matplotlib.figure import Figure
@@ -40,7 +40,6 @@ class EncryptedVectorGUI:
             self.status_var.set(f"Error initializing FHE: {e}")
 
     def enable_buttons(self):
-        self.btn_calc_cross["state"] = "normal"
         self.btn_calc_matrix["state"] = "normal"
         self.btn_run_stress["state"] = "normal"
 
@@ -57,59 +56,59 @@ class EncryptedVectorGUI:
         notebook = ttk.Notebook(main_frame)
         notebook.pack(fill=tk.BOTH, expand=True)
 
-        # Tab 1: Cross Product
-        self.tab_cross = ttk.Frame(notebook)
-        notebook.add(self.tab_cross, text="Physics (Cross Product)")
-        self.build_cross_product_tab()
-
-        # Tab 2: Matrix Transform (Flexible)
+        # Tab 1: Matrix Transform (Flexible)
         self.tab_matrix = ttk.Frame(notebook)
         notebook.add(self.tab_matrix, text="Linear Algebra (Matrix)")
         self.build_matrix_tab()
 
-        # Tab 3: Noise/Depth Demo
+        # Tab 2: Noise/Depth Demo
         self.tab_noise = ttk.Frame(notebook)
         notebook.add(self.tab_noise, text="Research: Noise & Depth")
         self.build_noise_tab()
-
-    # --- TAB 1: CROSS PRODUCT ---
-    def build_cross_product_tab(self):
-        container = ttk.Frame(self.tab_cross, padding="20")
-        container.pack(fill=tk.BOTH, expand=True)
-
-        # Inputs
-        input_frame = ttk.LabelFrame(container, text="Input Vectors (3D)", padding="10")
-        input_frame.pack(fill=tk.X, pady=5)
-
-        # Vector A
-        ttk.Label(input_frame, text="Position (r):").grid(row=0, column=0, padx=5, pady=5)
-        self.entry_a = [ttk.Entry(input_frame, width=8) for _ in range(3)]
-        vals_a = ["2.0", "5.0", "3.0"]
-        for i, e in enumerate(self.entry_a):
-            e.insert(0, vals_a[i])
-            e.grid(row=0, column=i+1)
-        ttk.Label(input_frame, text="(x, y, z)").grid(row=0, column=4, padx=5)
-
-        # Vector B
-        ttk.Label(input_frame, text="Force (F):").grid(row=1, column=0, padx=5, pady=5)
-        self.entry_b = [ttk.Entry(input_frame, width=8) for _ in range(3)]
-        vals_b = ["10.0", "0.0", "-5.0"]
-        for i, e in enumerate(self.entry_b):
-            e.insert(0, vals_b[i])
-            e.grid(row=1, column=i+1)
-
-        # Action
-        self.btn_calc_cross = ttk.Button(container, text="Encrypt & Compute Torque", command=self.run_cross_product, state="disabled")
-        self.btn_calc_cross.pack(pady=10)
-
-        # Output
-        self.out_cross = tk.Text(container, height=15, width=60)
-        self.out_cross.pack(fill=tk.BOTH, expand=True)
-
-    # --- TAB 2: MATRIX TRANSFORM ---
+    # --- TAB 1: MATRIX TRANSFORM ---
     def build_matrix_tab(self):
-        container = ttk.Frame(self.tab_matrix, padding="10")
-        container.pack(fill=tk.BOTH, expand=True)
+        # Make the full tab vertically scrollable (not only inner log boxes).
+        outer = ttk.Frame(self.tab_matrix)
+        outer.pack(fill=tk.BOTH, expand=True)
+
+        self.matrix_tab_canvas = tk.Canvas(outer, highlightthickness=0)
+        self.matrix_tab_scroll = ttk.Scrollbar(outer, orient=tk.VERTICAL, command=self.matrix_tab_canvas.yview)
+        self.matrix_tab_canvas.configure(yscrollcommand=self.matrix_tab_scroll.set)
+        self.matrix_tab_scroll.pack(side=tk.RIGHT, fill=tk.Y)
+        self.matrix_tab_canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        container = ttk.Frame(self.matrix_tab_canvas, padding="10")
+        self.matrix_tab_window = self.matrix_tab_canvas.create_window((0, 0), window=container, anchor="nw")
+
+        def _on_container_configure(event):
+            self.matrix_tab_canvas.configure(scrollregion=self.matrix_tab_canvas.bbox("all"))
+
+        def _on_canvas_configure(event):
+            # Keep inner frame width synced so widgets align properly.
+            self.matrix_tab_canvas.itemconfigure(self.matrix_tab_window, width=event.width)
+
+        def _on_wheel(event):
+            if event.delta:
+                self.matrix_tab_canvas.yview_scroll(int(-event.delta / 120), "units")
+            elif getattr(event, "num", None) == 4:
+                self.matrix_tab_canvas.yview_scroll(-1, "units")
+            elif getattr(event, "num", None) == 5:
+                self.matrix_tab_canvas.yview_scroll(1, "units")
+
+        def _bind_wheel(_event):
+            self.matrix_tab_canvas.bind_all("<MouseWheel>", _on_wheel)
+            self.matrix_tab_canvas.bind_all("<Button-4>", _on_wheel)
+            self.matrix_tab_canvas.bind_all("<Button-5>", _on_wheel)
+
+        def _unbind_wheel(_event):
+            self.matrix_tab_canvas.unbind_all("<MouseWheel>")
+            self.matrix_tab_canvas.unbind_all("<Button-4>")
+            self.matrix_tab_canvas.unbind_all("<Button-5>")
+
+        container.bind("<Configure>", _on_container_configure)
+        self.matrix_tab_canvas.bind("<Configure>", _on_canvas_configure)
+        self.matrix_tab_canvas.bind("<Enter>", _bind_wheel)
+        self.matrix_tab_canvas.bind("<Leave>", _unbind_wheel)
         
         # Title
         title = ttk.Label(container, text="Fully Homomorphic Matrix-Vector Operations", 
@@ -172,18 +171,91 @@ class EncryptedVectorGUI:
         
         ttk.Button(btn_frame, text="Load Example", command=self.load_matrix_example).pack(side=tk.LEFT, padx=5)
 
+        # Runtime profiling panel
+        profile_frame = ttk.LabelFrame(container, text="Runtime Profiling", padding="8")
+        profile_frame.pack(fill=tk.X, pady=5)
+        self.profile_vars: Dict[str, tk.StringVar] = {
+            "mode": tk.StringVar(value="-"),
+            "encrypt": tk.StringVar(value="-"),
+            "multiply": tk.StringVar(value="-"),
+            "rescale": tk.StringVar(value="-"),
+            "decrypt": tk.StringVar(value="-"),
+            "total": tk.StringVar(value="-"),
+            "throughput": tk.StringVar(value="-"),
+        }
+        profile_rows = [
+            ("Operation", "mode"),
+            ("Encrypt time", "encrypt"),
+            ("Multiply time", "multiply"),
+            ("Rescale time", "rescale"),
+            ("Decrypt time", "decrypt"),
+            ("Total latency", "total"),
+            ("Throughput", "throughput"),
+        ]
+        for idx, (label, key) in enumerate(profile_rows):
+            ttk.Label(profile_frame, text=f"{label}:", width=18).grid(row=idx, column=0, sticky=tk.W, padx=(0, 8), pady=1)
+            ttk.Label(
+                profile_frame,
+                textvariable=self.profile_vars[key],
+                font=('Consolas', 9),
+                foreground='#1f5d99'
+            ).grid(row=idx, column=1, sticky=tk.W, pady=1)
+
+        # Cryptographic artefacts panel (ciphertext visibility + verification)
+        crypto_frame = ttk.LabelFrame(container, text="Cryptographic Outputs & Verification", padding="8")
+        crypto_frame.pack(fill=tk.BOTH, pady=5)
+        opt_row = ttk.Frame(crypto_frame)
+        opt_row.pack(fill=tk.X, pady=(0, 5))
+        self.show_full_cipher_var = tk.BooleanVar(value=False)
+        self.show_full_ciphertext = False
+        ttk.Checkbutton(
+            opt_row,
+            text="Show full ciphertext bytes (very long)",
+            variable=self.show_full_cipher_var,
+            command=self._on_toggle_full_ciphertext
+        ).pack(side=tk.LEFT)
+        self.crypto_out = scrolledtext.ScrolledText(
+            crypto_frame, height=12, width=70, wrap=tk.WORD, font=('Consolas', 8),
+            selectbackground='#d9e2f2', selectforeground='#111111'
+        )
+        self.crypto_out.pack(fill=tk.BOTH, expand=True)
+        self.crypto_out.tag_configure('step', foreground='#0b5ed7', font=('Consolas', 8, 'bold'))
+        self.crypto_out.tag_configure('result', foreground='#146c43', font=('Consolas', 8, 'bold'))
+        self.crypto_out.tag_configure('error_tag', foreground='#b02a37', font=('Consolas', 8, 'bold'))
+        self.crypto_out.tag_configure('header', foreground='#6f42c1', font=('Consolas', 9, 'bold'))
+
         # Output with steps
         out_frame = ttk.LabelFrame(container, text="Computation Steps & Results", padding="5")
         out_frame.pack(fill=tk.BOTH, expand=True, pady=5)
         
-        self.out_matrix = scrolledtext.ScrolledText(out_frame, height=12, width=70, wrap=tk.WORD)
+        self.out_matrix = scrolledtext.ScrolledText(
+            out_frame, height=16, width=70, wrap=tk.WORD, font=('Consolas', 9),
+            selectbackground='#d9e2f2', selectforeground='#111111'
+        )
         self.out_matrix.pack(fill=tk.BOTH, expand=True)
+
+        def _text_wheel(widget, event):
+            if event.delta:
+                widget.yview_scroll(int(-event.delta / 120), "units")
+            elif getattr(event, "num", None) == 4:
+                widget.yview_scroll(-1, "units")
+            elif getattr(event, "num", None) == 5:
+                widget.yview_scroll(1, "units")
+            return "break"
+
+        # Keep wheel scrolling local to each output box.
+        self.out_matrix.bind("<MouseWheel>", lambda e: _text_wheel(self.out_matrix, e))
+        self.out_matrix.bind("<Button-4>", lambda e: _text_wheel(self.out_matrix, e))
+        self.out_matrix.bind("<Button-5>", lambda e: _text_wheel(self.out_matrix, e))
+        self.crypto_out.bind("<MouseWheel>", lambda e: _text_wheel(self.crypto_out, e))
+        self.crypto_out.bind("<Button-4>", lambda e: _text_wheel(self.crypto_out, e))
+        self.crypto_out.bind("<Button-5>", lambda e: _text_wheel(self.crypto_out, e))
         
         # Configure text tags for formatting
-        self.out_matrix.tag_configure('step', foreground='blue', font=('Courier', 9, 'bold'))
-        self.out_matrix.tag_configure('result', foreground='green', font=('Courier', 10, 'bold'))
-        self.out_matrix.tag_configure('error_tag', foreground='red')
-        self.out_matrix.tag_configure('header', foreground='purple', font=('Courier', 10, 'bold'))
+        self.out_matrix.tag_configure('step', foreground='#0b5ed7', font=('Consolas', 9, 'bold'))
+        self.out_matrix.tag_configure('result', foreground='#146c43', font=('Consolas', 9, 'bold'))
+        self.out_matrix.tag_configure('error_tag', foreground='#b02a37', font=('Consolas', 9, 'bold'))
+        self.out_matrix.tag_configure('header', foreground='#6f42c1', font=('Consolas', 10, 'bold'))
 
     def on_operation_change(self):
         """Handle operation type change."""
@@ -192,12 +264,13 @@ class EncryptedVectorGUI:
     def clear_matrix_output(self):
         """Clear the output text."""
         self.out_matrix.delete(1.0, tk.END)
+        self.crypto_out.delete(1.0, tk.END)
     
     def load_matrix_example(self):
         """Load an example based on current operation."""
         op = self.matrix_op_var.get()
         
-        if op == "matrix_vector":
+        if op in ["fully_encrypted_mv", "plaintext_matrix_enc_vector"]:
             # 3x3 rotation matrix example
             self.rows_var.set(3)
             self.cols_var.set(3)
@@ -383,7 +456,15 @@ class EncryptedVectorGUI:
         container = ttk.Frame(self.tab_noise, padding="20")
         container.pack(fill=tk.BOTH, expand=True)
 
-        intro = ttk.Label(container, text="Demonstrate 'Leveled' Homomorphic Encryption:\nMultiply a vector repeatedly until noise overwhelms the signal.\nThe coefficient modulus chain determines how many multiplications are possible.", justify=tk.CENTER)
+        intro = ttk.Label(
+            container,
+            text=(
+                "Research-grade CKKS depth stress test:\n"
+                "Requested multiplications are used to AUTO-configure FHE parameters.\n"
+                "Graph shows measured absolute/relative decryption error per operation (ciphertext x ciphertext)."
+            ),
+            justify=tk.CENTER
+        )
         intro.pack(pady=10)
 
         ctrl = ttk.Frame(container)
@@ -391,15 +472,14 @@ class EncryptedVectorGUI:
 
         ttk.Label(ctrl, text="Multiplications:").pack(side=tk.LEFT)
         self.mult_depth = tk.IntVar(value=10)
-        ttk.Spinbox(ctrl, from_=1, to=50, textvariable=self.mult_depth, width=5).pack(side=tk.LEFT, padx=5)
-        
-        ttk.Label(ctrl, text="  FHE Depth:").pack(side=tk.LEFT, padx=(10, 0))
-        self.fhe_depth_var = tk.StringVar(value="standard")
-        depth_combo = ttk.Combobox(ctrl, textvariable=self.fhe_depth_var, 
-                                    values=["light (4-6 mults)", "standard (8-10 mults)", "deep (12-15 mults)", "ultra deep (18-20 mults)"],
-                                    width=20, state="readonly")
-        depth_combo.pack(side=tk.LEFT, padx=5)
-        depth_combo.current(1)  # Default to standard (8-10 mults)
+        self.mult_spin = ttk.Spinbox(
+            ctrl, from_=1, to=50, textvariable=self.mult_depth, width=5, command=self.on_depth_change
+        )
+        self.mult_spin.pack(side=tk.LEFT, padx=5)
+        self.mult_spin.bind('<Return>', self.on_depth_change)
+
+        self.fhe_config_var = tk.StringVar(value="Auto FHE config pending...")
+        ttk.Label(ctrl, textvariable=self.fhe_config_var, foreground="#1f5d99").pack(side=tk.LEFT, padx=(12, 5))
 
         self.btn_run_stress = ttk.Button(ctrl, text="Run Stress Test", command=self.run_stress_test, state="disabled")
         self.btn_run_stress.pack(side=tk.LEFT, padx=10)
@@ -414,47 +494,134 @@ class EncryptedVectorGUI:
         self.canvas = FigureCanvasTkAgg(self.fig, master=container)
         self.canvas.draw()
         self.canvas.get_tk_widget().pack(fill=tk.BOTH, expand=True)
+        self.on_depth_change()
+
+    def _recommend_fhe_params(self, requested_mults: int):
+        """Pick CKKS params from requested multiplicative depth (no bootstrapping)."""
+        if requested_mults < 1:
+            raise ValueError("Multiplications must be at least 1.")
+
+        # Conservative limits for 128-bit security in this project setup.
+        # 16384: ~438 bits, 32768: ~881 bits.
+        poly_mod = 16384 if requested_mults <= 8 else 32768
+        max_total_bits = 438 if poly_mod == 16384 else 881
+        edge_prime_bits = 50  # First/last primes in chain
+        overhead_bits = edge_prime_bits * 2
+
+        available_middle_bits = max_total_bits - overhead_bits
+        middle_prime_bits = available_middle_bits // requested_mults
+        middle_prime_bits = min(40, middle_prime_bits)  # Cap for practical precision/perf balance
+
+        if middle_prime_bits < 30:
+            raise ValueError(
+                f"Requested depth={requested_mults} exceeds practical leveled CKKS limits without bootstrapping "
+                f"(minimum viable middle prime would be {middle_prime_bits} bits)."
+            )
+
+        coeff_mod = [edge_prime_bits] + [middle_prime_bits] * requested_mults + [edge_prime_bits]
+        total_bits = sum(coeff_mod)
+
+        # Keep scale safely below middle prime size to avoid fast scale mismatch failures.
+        scale_bits = max(20, min(30, middle_prime_bits - 5))
+
+        return {
+            "poly_mod": poly_mod,
+            "coeff_mod": coeff_mod,
+            "middle_prime_bits": middle_prime_bits,
+            "scale_bits": scale_bits,
+            "total_bits": total_bits,
+            "supported_mults": requested_mults,
+        }
+
+    def on_depth_change(self, event=None):
+        """Update the auto-configuration preview based on requested multiplications."""
+        try:
+            depth = int(self.mult_depth.get())
+            cfg = self._recommend_fhe_params(depth)
+            self.fhe_config_var.set(
+                "Auto FHE: "
+                f"N={cfg['poly_mod']}, coeff=[50 + {cfg['middle_prime_bits']}x{depth} + 50] "
+                f"({cfg['total_bits']} bits), scale=2^{cfg['scale_bits']}"
+            )
+            self.btn_run_stress["state"] = "normal"
+        except Exception as e:
+            self.fhe_config_var.set(f"Auto FHE unsupported for this depth: {e}")
+            self.btn_run_stress["state"] = "disabled"
 
     # --- LOGIC ---
 
-    def log_cross(self, msg):
-        self.out_cross.insert(tk.END, msg + "\n")
-        self.out_cross.see(tk.END)
+    def _detect_log_tag(self, msg: str):
+        """Infer a default log tag when one isn't explicitly provided."""
+        text = msg.strip().lower()
+        if "error" in text or "traceback" in text:
+            return 'error_tag'
+        if text.startswith("step ") or text.startswith("--- homomorphic"):
+            return 'step'
+        if "result" in text or "expected" in text or "decrypted" in text or "numerical error" in text:
+            return 'result'
+        if "=" in msg or "fully homomorphic" in text or text.startswith("--- results"):
+            return 'header'
+        return None
 
-    def log_matrix(self, msg):
-        self.out_matrix.insert(tk.END, msg + "\n")
-        self.out_matrix.see(tk.END)
+    def _append_log(self, widget, msg, tag=None):
+        """Append text, enforce end scroll, and auto-highlight key lines."""
+        resolved_tag = tag if tag is not None else self._detect_log_tag(msg)
+        text = msg if msg.endswith("\n") else msg + "\n"
+        if resolved_tag:
+            widget.insert(tk.END, text, resolved_tag)
+        else:
+            widget.insert(tk.END, text)
+        # Force viewport to follow live computation output.
+        widget.see(tk.END)
+        widget.yview_moveto(1.0)
+        widget.update_idletasks()
 
-    def run_cross_product(self):
-        try:
-            A = [float(e.get()) for e in self.entry_a]
-            B = [float(e.get()) for e in self.entry_b]
-            
-            self.out_cross.delete(1.0, tk.END)
-            self.log_cross(f"A: {A}, B: {B}")
+    def _profile_mode_label(self, op: str) -> str:
+        labels = {
+            "fully_encrypted_mv": "E(M) @ E(v)",
+            "plaintext_matrix_enc_vector": "M @ E(v)",
+            "vector_elementwise": "E(a) * E(b)",
+            "vector_dot": "E(a) · E(b)",
+        }
+        return labels.get(op, op)
 
-            # Plaintext
-            expected = np.cross(A, B)
-            self.log_cross(f"Expected: {expected}")
+    def _reset_profile_panel(self, op: str):
+        self.profile_vars["mode"].set(self._profile_mode_label(op))
+        self.profile_vars["encrypt"].set("Running...")
+        self.profile_vars["multiply"].set("Running...")
+        self.profile_vars["rescale"].set("Auto (included in multiply)")
+        self.profile_vars["decrypt"].set("Running...")
+        self.profile_vars["total"].set("Running...")
+        self.profile_vars["throughput"].set("Running...")
 
-            # Encrypted
-            self.status_var.set("Computing...")
-            self.root.update()
-            
-            enc_A = self.coordinator.encrypt_demand(A, "a")
-            enc_B = self.coordinator.encrypt_demand(B, "b")
-            
-            enc_res = self.algebra.encrypted_cross_product(enc_A, enc_B)
-            
-            dec_res = self.utility.decrypt_demand(enc_res)[:3]
-            self.log_cross(f"Decrypted: {np.array(dec_res)}")
-            
-            error = np.linalg.norm(dec_res - expected)
-            self.log_cross(f"Error: {error:.2e}")
-            self.status_var.set("Ready")
+    def _update_profile_panel(self, profile: Dict[str, str]):
+        for key, value in profile.items():
+            if key in self.profile_vars:
+                self.profile_vars[key].set(value)
 
-        except Exception as e:
-            messagebox.showerror("Error", str(e))
+    def _append_crypto_log(self, msg, tag=None):
+        self._append_log(self.crypto_out, msg, tag)
+
+    def _on_toggle_full_ciphertext(self):
+        self.show_full_ciphertext = bool(self.show_full_cipher_var.get())
+
+    def _format_ciphertext(self, enc_obj: EncryptedDemand) -> str:
+        if self.show_full_ciphertext:
+            return enc_obj.get_display_ciphertext(max_length=10_000_000)
+        return enc_obj.get_display_ciphertext(max_length=140)
+
+    def _log_encrypted_artifact(self, engine: SmartGridFHE, label: str, enc_obj: EncryptedDemand):
+        """Log ciphertext material and basic integrity checks for research visibility."""
+        verified = engine.verify_integrity(enc_obj)
+        preview = self._format_ciphertext(enc_obj)
+        self.root.after(0, lambda l=label: self._append_crypto_log(f"\n[{l}]", 'header'))
+        self.root.after(0, lambda e=enc_obj: self._append_crypto_log(
+            f"agent_id={e.agent_id} | size={e.get_size_kb():.2f} KB | vector_size={e.vector_size}", 'step'
+        ))
+        self.root.after(0, lambda e=enc_obj: self._append_crypto_log(
+            f"checksum={e.checksum} | integrity_verified={verified}", 'result' if verified else 'error_tag'
+        ))
+        self.root.after(0, lambda p=preview: self._append_crypto_log(f"ciphertext(base64)={p}"))
 
     def run_matrix_transform(self):
         """Execute fully homomorphic matrix/vector operation with detailed step logging."""
@@ -466,9 +633,17 @@ class EncryptedVectorGUI:
             op = self.matrix_op_var.get()
             rows = self.rows_var.get()
             cols = self.cols_var.get()
+            total_start = time.perf_counter()
+            timing_encrypt = 0.0
+            timing_multiply = 0.0
+            timing_decrypt = 0.0
+            cipher_mult_ops = 0
+            output_count = 0
             
             # Clear output
             self.root.after(0, lambda: self.out_matrix.delete(1.0, tk.END))
+            self.root.after(0, lambda: self.crypto_out.delete(1.0, tk.END))
+            self.root.after(0, lambda op_val=op: self._reset_profile_panel(op_val))
             
             # Use project's SmartGridFHE with standard parameters
             # poly_modulus_degree=16384, coeff_mod=[60, 40, 40, 40, 60] as per project docs
@@ -480,6 +655,15 @@ class EncryptedVectorGUI:
             public_ctx = utility.get_public_context()
             coordinator = SmartGridFHE.from_context(public_ctx)  # Public only - cannot decrypt
             algebra = SecureLinearAlgebra(coordinator)
+            ctx_hash = utility.get_context_hash()
+            self.root.after(0, lambda: self._append_crypto_log("=" * 72, 'header'))
+            self.root.after(0, lambda: self._append_crypto_log("CRYPTOGRAPHIC SESSION DETAILS", 'header'))
+            self.root.after(0, lambda h=ctx_hash: self._append_crypto_log(f"context_hash={h}", 'step'))
+            self.root.after(0, lambda: self._append_crypto_log(
+                f"utility_has_secret_key={utility.is_private()} | coordinator_has_secret_key={coordinator.is_private()}",
+                'step'
+            ))
+            self.root.after(0, lambda: self._append_crypto_log("=" * 72, 'header'))
             
             def log_step(msg):
                 """Thread-safe logging."""
@@ -515,19 +699,25 @@ class EncryptedVectorGUI:
                 log_step("Step 1: Encrypting MATRIX (each row as separate ciphertext)")
                 enc_matrix_rows: List[EncryptedDemand] = []
                 total_matrix_size = 0
+                t0 = time.perf_counter()
                 for i, row in enumerate(M):
                     enc_row = coordinator.encrypt_demand(row, f"matrix_row_{i}")
                     enc_matrix_rows.append(enc_row)
                     total_matrix_size += enc_row.get_size_kb()
                     log_step(f"        E(row_{i+1}): {enc_row.get_size_kb():.1f} KB | checksum: {enc_row.checksum}")
+                    self._log_encrypted_artifact(coordinator, f"Encrypted Matrix Row {i+1}", enc_row)
+                timing_encrypt += time.perf_counter() - t0
                 log_step(f"        Total encrypted matrix size: {total_matrix_size:.1f} KB")
                 time.sleep(0.1)
                 
                 # Step 2: Encrypt the vector
                 self.status_var.set("Step 2: Encrypting input vector...")
                 log_step("\nStep 2: Encrypting INPUT VECTOR")
+                t0 = time.perf_counter()
                 enc_V: EncryptedDemand = coordinator.encrypt_demand(V, "input_vector")
+                timing_encrypt += time.perf_counter() - t0
                 log_step(f"        E(v): {enc_V.get_size_kb():.1f} KB | checksum: {enc_V.checksum}")
+                self._log_encrypted_artifact(coordinator, "Encrypted Input Vector", enc_V)
                 time.sleep(0.1)
                 
                 # Step 3: Fully homomorphic matrix-vector multiplication
@@ -535,19 +725,26 @@ class EncryptedVectorGUI:
                 log_step("\nStep 3: FULLY HOMOMORPHIC Matrix-Vector Multiplication")
                 log_step("        Computing E(row_i) · E(v) for each row (encrypted dot products)")
                 
+                t0 = time.perf_counter()
                 enc_results: List[EncryptedDemand] = algebra.fully_homomorphic_matrix_vector_multiply(
                     enc_matrix_rows, enc_V, rows, cols, log_step
                 )
+                timing_multiply += time.perf_counter() - t0
+                cipher_mult_ops += rows
+                output_count = rows
                 time.sleep(0.1)
                 
                 # Step 4: Decrypt results
                 self.status_var.set("Step 4: Decrypting results...")
                 log_step("\nStep 4: Utility decrypts each result element (has SECRET key)")
                 decrypted = []
+                t0 = time.perf_counter()
                 for i, enc_res in enumerate(enc_results):
                     dec_val = utility.decrypt_demand(enc_res)[0]
                     decrypted.append(dec_val)
                     log_step(f"        Decrypt E(result[{i+1}]) → {dec_val:.6f}")
+                    self._log_encrypted_artifact(coordinator, f"Encrypted Result Element {i+1}", enc_res)
+                timing_decrypt += time.perf_counter() - t0
                 
                 self.root.after(0, lambda: self._append_matrix_log("\n--- RESULTS ---\n", 'header'))
                 self.root.after(0, lambda: self._append_matrix_log(f"Decrypted Result: {[f'{x:.6f}' for x in decrypted]}", 'result'))
@@ -586,27 +783,36 @@ class EncryptedVectorGUI:
                 # Step 1: Encrypt vector
                 self.status_var.set("Step 1: Encrypting input vector...")
                 log_step("Step 1: Encrypting input vector")
+                t0 = time.perf_counter()
                 enc_V: EncryptedDemand = coordinator.encrypt_demand(V, "input_vector")
+                timing_encrypt += time.perf_counter() - t0
                 log_step(f"        E(v): {enc_V.get_size_kb():.1f} KB | checksum: {enc_V.checksum}")
+                self._log_encrypted_artifact(coordinator, "Encrypted Input Vector", enc_V)
                 time.sleep(0.1)
                 
                 # Step 2: Compute M @ E(v) row by row
                 self.status_var.set("Step 2: Computing M @ E(v)...")
                 log_step("\nStep 2: Computing M @ E(v) homomorphically")
                 
+                t0 = time.perf_counter()
                 enc_results: List[EncryptedDemand] = algebra.plaintext_matrix_encrypted_vector_multiply(
                     M, enc_V, rows, cols, log_step
                 )
+                timing_multiply += time.perf_counter() - t0
+                output_count = rows
                 time.sleep(0.1)
                 
                 # Step 3: Decrypt results
                 self.status_var.set("Step 3: Decrypting results...")
                 log_step("\nStep 3: Utility decrypts results")
                 decrypted = []
+                t0 = time.perf_counter()
                 for i, enc_res in enumerate(enc_results):
                     dec_val = utility.decrypt_demand(enc_res)[0]
                     decrypted.append(dec_val)
                     log_step(f"        Decrypt E(result[{i+1}]) → {dec_val:.6f}")
+                    self._log_encrypted_artifact(coordinator, f"Encrypted Result Element {i+1}", enc_res)
+                timing_decrypt += time.perf_counter() - t0
                 
                 self.root.after(0, lambda: self._append_matrix_log("\n--- RESULTS ---\n", 'header'))
                 self.root.after(0, lambda: self._append_matrix_log(f"Decrypted Result: {[f'{x:.6f}' for x in decrypted]}", 'result'))
@@ -637,13 +843,19 @@ class EncryptedVectorGUI:
                 # Step 1: Encrypt both vectors
                 self.status_var.set("Step 1: Encrypting vectors...")
                 log_step("Step 1: Agent A encrypts vector A using PUBLIC context")
+                t0 = time.perf_counter()
                 enc_a: EncryptedDemand = coordinator.encrypt_demand(V1, "vector_a")
+                timing_encrypt += time.perf_counter() - t0
                 log_step(f"        E(a) ciphertext: {enc_a.get_size_kb():.1f} KB")
+                self._log_encrypted_artifact(coordinator, "Encrypted Vector A", enc_a)
                 time.sleep(0.1)
                 
                 log_step("\nStep 2: Agent B encrypts vector B using PUBLIC context")
+                t0 = time.perf_counter()
                 enc_b: EncryptedDemand = coordinator.encrypt_demand(V2, "vector_b")
+                timing_encrypt += time.perf_counter() - t0
                 log_step(f"        E(b) ciphertext: {enc_b.get_size_kb():.1f} KB")
+                self._log_encrypted_artifact(coordinator, "Encrypted Vector B", enc_b)
                 time.sleep(0.1)
                 
                 # Step 2: Homomorphic multiplication (ciphertext * ciphertext)
@@ -653,14 +865,21 @@ class EncryptedVectorGUI:
                 log_step("        Auto-relinearization reduces ciphertext size")
                 log_step("        Auto-rescaling manages noise growth")
                 
+                t0 = time.perf_counter()
                 enc_result: EncryptedDemand = coordinator.compute_elementwise_product(enc_a, enc_b)
+                timing_multiply += time.perf_counter() - t0
+                cipher_mult_ops += 1
+                output_count = size
                 log_step(f"        Result ciphertext: {enc_result.get_size_kb():.1f} KB")
+                self._log_encrypted_artifact(coordinator, "Encrypted Element-wise Result", enc_result)
                 time.sleep(0.1)
                 
                 # Step 3: Decrypt
                 self.status_var.set("Step 4: Decrypting result...")
                 log_step("\nStep 4: Utility decrypts result (SECRET key required)")
+                t0 = time.perf_counter()
                 decrypted = utility.decrypt_demand(enc_result)[:size]
+                timing_decrypt += time.perf_counter() - t0
                 
                 self.root.after(0, lambda: self._append_matrix_log("\n--- RESULTS ---\n", 'header'))
                 self.root.after(0, lambda: self._append_matrix_log(f"Decrypted Result: {[f'{x:.6f}' for x in decrypted]}", 'result'))
@@ -691,13 +910,19 @@ class EncryptedVectorGUI:
                 # Step 1: Encrypt both vectors
                 self.status_var.set("Step 1: Encrypting vectors...")
                 log_step("Step 1: Agent A encrypts vector A")
+                t0 = time.perf_counter()
                 enc_a: EncryptedDemand = coordinator.encrypt_demand(V1, "vector_a")
+                timing_encrypt += time.perf_counter() - t0
                 log_step(f"        E(a) ciphertext: {enc_a.get_size_kb():.1f} KB")
+                self._log_encrypted_artifact(coordinator, "Encrypted Vector A", enc_a)
                 time.sleep(0.1)
                 
                 log_step("\nStep 2: Agent B encrypts vector B")
+                t0 = time.perf_counter()
                 enc_b: EncryptedDemand = coordinator.encrypt_demand(V2, "vector_b")
+                timing_encrypt += time.perf_counter() - t0
                 log_step(f"        E(b) ciphertext: {enc_b.get_size_kb():.1f} KB")
+                self._log_encrypted_artifact(coordinator, "Encrypted Vector B", enc_b)
                 time.sleep(0.1)
                 
                 # Step 2: Homomorphic dot product
@@ -706,14 +931,21 @@ class EncryptedVectorGUI:
                 log_step("        E(a) × E(b) element-wise → E([a₀b₀, a₁b₁, ...])")
                 log_step("        sum(E(a×b)) → E(Σ aᵢbᵢ)")
                 
+                t0 = time.perf_counter()
                 enc_result: EncryptedDemand = coordinator.compute_dot_product(enc_a, enc_b)
+                timing_multiply += time.perf_counter() - t0
+                cipher_mult_ops += 1
+                output_count = 1
                 log_step(f"        Result ciphertext: {enc_result.get_size_kb():.1f} KB")
+                self._log_encrypted_artifact(coordinator, "Encrypted Dot-product Result", enc_result)
                 time.sleep(0.1)
                 
                 # Step 3: Decrypt
                 self.status_var.set("Step 4: Decrypting result...")
                 log_step("\nStep 4: Utility decrypts scalar result")
+                t0 = time.perf_counter()
                 decrypted = utility.decrypt_demand(enc_result)[0]
+                timing_decrypt += time.perf_counter() - t0
                 
                 self.root.after(0, lambda: self._append_matrix_log("\n--- RESULTS ---\n", 'header'))
                 self.root.after(0, lambda: self._append_matrix_log(f"Decrypted Result: {decrypted:.6f}", 'result'))
@@ -723,20 +955,47 @@ class EncryptedVectorGUI:
                 self.root.after(0, lambda: self._append_matrix_log(f"Numerical Error:  {error:.2e}", 'result'))
             
             self.root.after(0, lambda: self._append_matrix_log(
-                "\n\nComputation completed successfully!\n" +
-                "Privacy preserved: Coordinator never saw plaintext values.", 'result'))
+                "\n\nComputation completed successfully!", 'result'))
+            total_latency = time.perf_counter() - total_start
+            rescale_note = (
+                f"~{timing_multiply * 1000:.1f} ms (auto-rescale inside multiply)"
+                if timing_multiply > 0 else "N/A"
+            )
+            throughput = output_count / total_latency if total_latency > 0 else 0.0
+            ciph_mul_rate = cipher_mult_ops / total_latency if total_latency > 0 else 0.0
+            profile = {
+                "mode": self._profile_mode_label(op),
+                "encrypt": f"{timing_encrypt * 1000:.1f} ms",
+                "multiply": f"{timing_multiply * 1000:.1f} ms",
+                "rescale": rescale_note,
+                "decrypt": f"{timing_decrypt * 1000:.1f} ms",
+                "total": f"{total_latency * 1000:.1f} ms",
+                "throughput": f"{throughput:.2f} outputs/s | {ciph_mul_rate:.2f} ciph-mults/s",
+            }
+            self.root.after(0, lambda p=profile: self._update_profile_panel(p))
             self.status_var.set("Ready - Computation complete")
 
         except Exception as e:
             import traceback
             error_msg = f"Error: {str(e)}\n{traceback.format_exc()}"
             self.root.after(0, lambda: self._append_matrix_log(error_msg, 'error_tag'))
+            self.root.after(0, lambda m=error_msg: self._append_crypto_log(m, 'error_tag'))
+            total_latency = time.perf_counter() - total_start
+            failed_profile = {
+                "mode": self._profile_mode_label(op),
+                "encrypt": f"{timing_encrypt * 1000:.1f} ms",
+                "multiply": f"{timing_multiply * 1000:.1f} ms",
+                "rescale": "Auto (included in multiply)",
+                "decrypt": f"{timing_decrypt * 1000:.1f} ms",
+                "total": f"{total_latency * 1000:.1f} ms (failed)",
+                "throughput": "N/A",
+            }
+            self.root.after(0, lambda p=failed_profile: self._update_profile_panel(p))
             self.status_var.set(f"Error: {str(e)}")
     
     def _append_matrix_log(self, msg, tag=None):
         """Append message to matrix output with optional formatting."""
-        self.out_matrix.insert(tk.END, msg + "\n", tag)
-        self.out_matrix.see(tk.END)
+        self._append_log(self.out_matrix, msg, tag)
 
     def run_stress_test(self):
         threading.Thread(target=self._stress_test_worker).start()
@@ -745,151 +1004,116 @@ class EncryptedVectorGUI:
         try:
             depth = self.mult_depth.get()
             val = 2.0
-            
-            # Determine coefficient modulus chain and poly_modulus_degree based on selected depth
-            # Following project's cryptography_guide.md:
-            # - poly_modulus_degree: 8192 or 16384 (128-bit security)
-            # - coeff_mod determines multiplicative depth
-            # - Total bits must be <= max for poly_modulus_degree
-            #   For 8192: max ~218 bits, for 16384: max ~438 bits
-            fhe_depth = self.fhe_depth_var.get()
-            
-            if "light" in fhe_depth:
-                # Light depth: ~4-6 multiplications
-                # poly_mod=16384: max ~438 bits total
-                # [60, 40*5, 60] = 320 bits <= 438 ✓
-                # Middle primes: 5 (allows ~5 mults)
-                poly_mod = 16384
-                coeff_mod = [60] + [40] * 5 + [60]  # 320 bits
-                max_mults = 5
-            elif "standard" in fhe_depth:
-                # Standard depth: ~8-10 multiplications (DEFAULT)
-                # poly_mod=32768: max ~880 bits total
-                # [60, 40*10, 60] = 520 bits <= 880 ✓
-                # Middle primes: 10 (allows ~10 mults)
-                poly_mod = 32768
-                coeff_mod = [60] + [40] * 10 + [60]  # 520 bits
-                max_mults = 10
-            elif "ultra" in fhe_depth:
-                # Ultra deep: ~18-20 multiplications for extreme research
-                # poly_mod=32768: max ~880 bits total
-                # [60, 40*20, 60] = 920 > 880, use 35-bit primes
-                # [50, 35*20, 50] = 800 bits <= 880 ✓
-                # Middle primes: 20 (allows ~20 mults)
-                poly_mod = 32768
-                coeff_mod = [50] + [35] * 20 + [50]  # 800 bits
-                max_mults = 20
-            else:  # deep
-                # Deep depth: ~12-15 multiplications
-                # poly_mod=32768: max ~880 bits total
-                # [60, 40*15, 60] = 720 bits <= 880 ✓
-                # Middle primes: 15 (allows ~15 mults)
-                poly_mod = 32768
-                coeff_mod = [60] + [40] * 15 + [60]  # 720 bits
-                max_mults = 15
-            
-            total_bits = sum(coeff_mod)
-            self.status_var.set(f"Initializing FHE: poly_mod={poly_mod}, ~{max_mults} mult depth, {total_bits} total bits...")
-            
-            # Create a new FHE engine with the selected parameters for stress test
-            stress_utility = SmartGridFHE(poly_modulus_degree=poly_mod, coeff_mod_bit_sizes=coeff_mod)
+
+            cfg = self._recommend_fhe_params(depth)
+            self.status_var.set(
+                "Initializing auto FHE: "
+                f"depth={depth}, N={cfg['poly_mod']}, {cfg['total_bits']} bits, scale=2^{cfg['scale_bits']}"
+            )
+
+            # Create FHE engine with auto-selected, depth-matched parameters.
+            stress_utility = SmartGridFHE(
+                poly_modulus_degree=cfg["poly_mod"],
+                coeff_mod_bit_sizes=cfg["coeff_mod"],
+                global_scale=2 ** cfg["scale_bits"]
+            )
             
             # Encrypt initial value
             enc = stress_utility.encrypt_demand([val], "stress")
             
-            errors = []
+            abs_errors = []
+            rel_errors = []
             x_axis = []
             
             curr_enc = enc
             curr_expected = val
-            failed_at = None  # Track where we failed
+            failed_at = None
+            failure_reason = None
+            multiplier = 1.125  # Meaningful repeated operation for depth/noise experiments.
+            enc_multiplier = stress_utility.encrypt_demand([multiplier], "stress_multiplier")
             
             for i in range(1, depth + 1):
                 self.status_var.set(f"Stress Test: Multiplication {i}/{depth}...")
-                
-                if failed_at is None:
-                    try:
-                        # Perform Multiplication
-                        # We use multiply_plain with 1.0. This consumes depth (rescale) 
-                        # but keeps value stable.
-                        # Repeatedly doing this eventually exhausts the coefficient modulus chain.
-                        curr_enc = stress_utility.multiply_plain(curr_enc, 1.0)
-                        
-                        # Decrypt to check error
-                        res = stress_utility.decrypt_demand(curr_enc)[0]
-                        err = abs(res - curr_expected)
-                        errors.append(err + 1e-15) # Avoid log(0)
-                        x_axis.append(i)
-                        
-                    except Exception as e:
-                        print(f"Failed at step {i}: {e}")
-                        failed_at = i
-                        # Add the failure point with high error
-                        errors.append(1e10)  # Large value for plot to indicate failure
-                        x_axis.append(i)
-                else:
-                    # Already failed - continue filling with high error values
-                    # to show the complete requested depth range
-                    errors.append(1e10)
+
+                try:
+                    # Fully homomorphic multiplication path: ciphertext x ciphertext.
+                    curr_enc = stress_utility.multiply_encrypted(curr_enc, enc_multiplier)
+                    curr_expected *= multiplier
+
+                    # Decrypt and compute measured errors
+                    res = stress_utility.decrypt_demand(curr_enc)[0]
+                    abs_err = abs(res - curr_expected)
+                    rel_err = abs_err / max(abs(curr_expected), 1e-12)
+
+                    abs_errors.append(max(abs_err, 1e-18))
+                    rel_errors.append(max(rel_err, 1e-18))
                     x_axis.append(i)
-                
-                # Update plot after each iteration (whether successful or not)
-                self.root.after(10, self.update_plot, list(x_axis), list(errors))
-                
+
+                    self.root.after(
+                        10, self.update_plot, list(x_axis), list(abs_errors), list(rel_errors), failed_at, failure_reason
+                    )
+                except Exception as e:
+                    failed_at = i
+                    failure_reason = str(e)
+                    self.root.after(
+                        10, self.update_plot, list(x_axis), list(abs_errors), list(rel_errors), failed_at, failure_reason
+                    )
+                    break
+
                 # Small delay to allow GUI to update and show progress
                 time.sleep(0.05)
             
             if failed_at:
-                self.status_var.set(f"Stress Test Complete. Noise exhausted at multiplication {failed_at}.")
+                self.status_var.set(
+                    f"Stress Test stopped at multiplication {failed_at}: noise/depth limit reached ({failure_reason})"
+                )
             else:
-                self.status_var.set("Stress Test Complete.")
+                self.status_var.set(
+                    f"Stress Test complete: {depth} multiplications succeeded with auto depth configuration."
+                )
             
         except Exception as e:
             print(f"Stress error: {e}")
             self.status_var.set(f"Stress Test Error: {e}")
 
-    def update_plot(self, x, y):
+    def update_plot(self, x, abs_y, rel_y, failure_step=None, failure_reason=None):
         self.ax.clear()
-        self.ax.set_title("Decryption Error vs. Operations")
+        self.ax.set_title("Measured CKKS Error vs. Operations")
         self.ax.set_xlabel("Operations")
         self.ax.set_ylabel("Error (Log Scale)")
         self.ax.set_yscale("log")
-        
-        # Separate successful operations from failed ones
-        success_x = []
-        success_y = []
-        fail_x = []
-        fail_y = []
-        
-        for xi, yi in zip(x, y):
-            if yi >= 1e9:  # Failed operations (high error marker)
-                fail_x.append(xi)
-                fail_y.append(yi)
-            else:
-                success_x.append(xi)
-                success_y.append(yi)
-        
-        # Plot successful operations in blue
-        if success_x:
-            self.ax.plot(success_x, success_y, 'b-o', label='Successful', markersize=6)
-        
-        # Plot failed operations in red
-        if fail_x:
-            self.ax.plot(fail_x, fail_y, 'r-x', label='Noise Exhausted', markersize=8, linewidth=2)
-            
-            # Add a vertical line at the failure point
-            if success_x:
-                failure_point = min(fail_x)
-                self.ax.axvline(x=failure_point, color='red', linestyle='--', alpha=0.5, 
-                               label=f'Noise limit (~{failure_point-1} mults)')
-        
+
+        if x and abs_y:
+            self.ax.plot(x, abs_y, 'b-o', label='Absolute error |dec - expected|', markersize=5)
+        if x and rel_y:
+            self.ax.plot(x, rel_y, color='#2ca02c', marker='s', linestyle='--', label='Relative error', markersize=4)
+
+        if failure_step is not None:
+            self.ax.axvline(
+                x=failure_step, color='red', linestyle='--', alpha=0.65,
+                label=f'Failure at op {failure_step}'
+            )
+            if x and abs_y:
+                top_y = max(max(abs_y), max(rel_y) if rel_y else max(abs_y))
+                self.ax.annotate(
+                    "Noise/depth limit reached",
+                    xy=(failure_step, top_y),
+                    xytext=(8, 8),
+                    textcoords='offset points',
+                    fontsize=8,
+                    color='red'
+                )
+
         self.ax.grid(True, alpha=0.3)
-        self.ax.legend(loc='upper left', fontsize=8)
-        
-        # Set y-axis limits for better visualization
-        if success_y:
-            min_err = min(success_y)
-            self.ax.set_ylim(min_err * 0.1, 1e12)
+        if self.ax.get_legend_handles_labels()[0]:
+            self.ax.legend(loc='upper left', fontsize=8)
+
+        # Keep a stable floor for log-scale and auto-limit upper bound from data.
+        all_errors = [v for v in abs_y + rel_y if v > 0]
+        if all_errors:
+            min_err = min(all_errors)
+            max_err = max(all_errors)
+            self.ax.set_ylim(max(min_err * 0.5, 1e-18), max_err * 5)
         
         self.canvas.draw()
 

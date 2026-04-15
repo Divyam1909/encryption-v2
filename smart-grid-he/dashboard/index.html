@@ -6,7 +6,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Privacy-Preserving Smart Grid</title>
     <link rel="stylesheet" href="styles.css">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link rel="icon" href="data:,">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
 </head>
 
 <body>
@@ -67,6 +68,14 @@
             <div class="status-item">
                 <span class="label">Rounds:</span>
                 <span id="round-count" class="value">0</span>
+            </div>
+            <div class="status-item">
+                <span class="label">Sim Time:</span>
+                <span id="sim-time" class="value sim-time-value">00:00</span>
+            </div>
+            <div class="status-item">
+                <span class="label">Grid:</span>
+                <span id="peak-status" class="value peak-status-offpeak">&#9679; Off-Peak</span>
             </div>
             <div class="status-item">
                 <span class="label">Privacy:</span>
@@ -156,9 +165,18 @@
                     </svg>
                 </div>
                 <div class="topology-legend">
-                    <span><span class="legend-dot house"></span> Household (Unique Encryption)</span>
-                    <span><span class="legend-dot coord"></span> Coordinator (Public Key Only)</span>
-                    <span><span class="legend-dot utility"></span> Utility (Secret Key Holder)</span>
+                    <span><span class="legend-dot residential-small"></span> Residential Small</span>
+                    <span><span class="legend-dot residential-medium"></span> Residential Medium</span>
+                    <span><span class="legend-dot residential-large"></span> Residential Large</span>
+                    <span><span class="legend-dot commercial"></span> Commercial</span>
+                    <span><span class="legend-dot coord"></span> Coordinator (No Secret Key)</span>
+                    <span><span class="legend-dot utility"></span> Utility (Secret Key)</span>
+                </div>
+                <div id="profile-breakdown" class="profile-breakdown" style="display:none;">
+                    <span class="profile-chip residential-small-chip">S: <span id="count-res-small">0</span></span>
+                    <span class="profile-chip residential-medium-chip">M: <span id="count-res-medium">0</span></span>
+                    <span class="profile-chip residential-large-chip">L: <span id="count-res-large">0</span></span>
+                    <span class="profile-chip commercial-chip">C: <span id="count-commercial">0</span></span>
                 </div>
             </div>
 
@@ -245,8 +263,7 @@
                     <span class="hint-icon large"
                         data-tooltip="This chart proves FHE correctness: decrypted encrypted computation matches direct plaintext computation. The error is ~10^-7, negligible for power grid applications.">?</span>
                 </h2>
-                <p class="note">CKKS scheme maintains ~10^-7 relative error, negligible for practical use. Both lines
-                    should overlap almost perfectly.</p>
+                <p class="note">CKKS scheme maintains ~10<sup>-7</sup> relative error. Orange (plaintext) is drawn thicker beneath green (encrypted) — when they overlap it proves FHE correctness. Any visible separation indicates a larger error (shown in the error chart below).</p>
                 <div class="chart-container">
                     <canvas id="comparison-chart"></canvas>
                 </div>

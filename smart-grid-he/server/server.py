@@ -16,7 +16,7 @@ the dashboard with real-time encrypted data flow.
 import asyncio
 import json
 from typing import Dict, List, Optional, Any
-from datetime import datetime
+from datetime import datetime, timedelta
 from contextlib import asynccontextmanager
 import sys
 import os
@@ -52,6 +52,12 @@ class RoundResponse(BaseModel):
     encrypted_total_preview: str
     plaintext_total_kw: float  # For comparison
     error_kw: float
+    # Smart grid context
+    simulated_time: str = ""          # Simulated time of day (HH:MM)
+    simulated_hour: int = 0           # Hour (0-23) for peak detection
+    is_peak_hour: bool = False        # True during morning (6-9) or evening (17-21) peak
+    capacity_kw: float = 100.0        # Grid capacity for dashboard threshold lines
+    agent_profiles: dict = {}         # Count by profile type
 
 
 class SystemConfig(BaseModel):
@@ -96,10 +102,15 @@ class SmartGridServer:
         self.is_running = False
         self.auto_run = False
         self.auto_interval = 3.0  # seconds
-        
+
+        # Simulated time — starts at midnight, advances 15 min per round
+        # This drives realistic demand patterns (morning/evening peaks etc.)
+        self.simulated_time: datetime = datetime(2024, 1, 15, 0, 0, 0)
+        self.sim_time_step: timedelta = timedelta(minutes=15)
+
         # WebSocket clients
         self.websocket_clients: List[WebSocket] = []
-        
+
         # History for dashboard
         self.history: List[Dict] = []
     
@@ -145,14 +156,28 @@ class SmartGridServer:
             raise RuntimeError("System not initialized")
         
         self.round_count += 1
-        
-        # Collect encrypted demands from all agents
-        encrypted_demands = self.agent_manager.collect_encrypted_demands()
-        
+
+        # Advance simulated time by 15 minutes per round
+        current_sim_time = self.simulated_time
+        self.simulated_time += self.sim_time_step
+        sim_hour = current_sim_time.hour
+        sim_is_peak = (6 <= sim_hour <= 9) or (17 <= sim_hour <= 21)
+
+        # Collect encrypted demands from all agents (using simulated timestamp)
+        encrypted_demands = self.agent_manager.collect_encrypted_demands(
+            timestamp=current_sim_time
+        )
+
         # Get plaintext for comparison (only for evaluation)
         plaintext_demands = self.agent_manager.get_plaintext_demands_for_comparison()
         plaintext_total = sum(plaintext_demands.values())
         plaintext_avg = plaintext_total / len(plaintext_demands)
+
+        # Build agent profile summary
+        profile_counts: Dict[str, int] = {}
+        for agent in self.agent_manager.agents.values():
+            p = agent.profile.value
+            profile_counts[p] = profile_counts.get(p, 0) + 1
         
         # Process on coordinator (encrypted)
         result = self.coordinator.process_round(encrypted_demands)
@@ -185,7 +210,12 @@ class SmartGridServer:
             computation_time_ms=round(result.computation_time_ms, 2),
             encrypted_total_preview=result.encrypted_total.get_display_ciphertext(50),
             plaintext_total_kw=round(plaintext_total, 4),
-            error_kw=round(error, 8)
+            error_kw=round(error, 8),
+            simulated_time=current_sim_time.strftime("%H:%M"),
+            simulated_hour=sim_hour,
+            is_peak_hour=sim_is_peak,
+            capacity_kw=self.grid_capacity_kw,
+            agent_profiles=profile_counts,
         )
         
         # Store in history
@@ -301,21 +331,24 @@ async def root():
     return HTMLResponse("<h1>Smart Grid HE System</h1><p>Dashboard not found</p>")
 
 
+_NO_CACHE = {"Cache-Control": "no-cache, no-store, must-revalidate", "Pragma": "no-cache"}
+
+
 @app.get("/styles.css")
 async def serve_css():
-    """Serve CSS file"""
+    """Serve CSS file (no-cache so edits are always picked up)"""
     css_path = os.path.join(dashboard_path, "styles.css")
     if os.path.exists(css_path):
-        return FileResponse(css_path, media_type="text/css")
+        return FileResponse(css_path, media_type="text/css", headers=_NO_CACHE)
     return HTMLResponse("/* CSS not found */", status_code=404)
 
 
 @app.get("/dashboard.js")
 async def serve_js():
-    """Serve JavaScript file"""
+    """Serve JavaScript file (no-cache so edits are always picked up)"""
     js_path = os.path.join(dashboard_path, "dashboard.js")
     if os.path.exists(js_path):
-        return FileResponse(js_path, media_type="application/javascript")
+        return FileResponse(js_path, media_type="application/javascript", headers=_NO_CACHE)
     return HTMLResponse("// JS not found", status_code=404)
 
 
@@ -385,6 +418,7 @@ async def update_config(config: SystemConfig):
     server.grid_capacity_kw = config.grid_capacity_kw
     server.round_count = 0
     server.history.clear()
+    server.simulated_time = datetime(2024, 1, 15, 0, 0, 0)
     server.initialize()
     return {"status": "reconfigured", **config.model_dump()}
 

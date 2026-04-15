@@ -1144,3 +1144,63 @@ footer {
     background-repeat: no-repeat;
     background-position: center;
 }
+
+/* ─── Simulated Time & Peak Status ─────────────────────────────────────────── */
+
+.sim-time-value {
+    color: var(--info);
+    font-family: 'Consolas', 'Monaco', monospace;
+    font-size: 1rem;
+    letter-spacing: 1px;
+}
+
+.peak-status-offpeak {
+    color: var(--accent);
+}
+
+.peak-status-peak {
+    color: var(--warning);
+    font-weight: 700;
+    animation: peakPulse 1.2s ease-in-out infinite;
+}
+
+@keyframes peakPulse {
+    0%, 100% { opacity: 1; }
+    50%       { opacity: 0.55; }
+}
+
+/* ─── Household Profile Legend Dots ────────────────────────────────────────── */
+
+.legend-dot.residential-small  { background: #4ecca3; }
+.legend-dot.residential-medium { background: #f0a500; }
+.legend-dot.residential-large  { background: #ff6b6b; }
+.legend-dot.commercial         { background: #58a6ff; }
+.legend-dot.coord              { background: #4ecca3; border: 2px solid #4ecca3; border-radius: 3px; }
+.legend-dot.utility            { background: #58a6ff; border: 2px solid #58a6ff; border-radius: 3px; }
+
+/* ─── Profile Breakdown Chips ───────────────────────────────────────────────── */
+
+.profile-breakdown {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+    padding: 8px 0;
+}
+
+.profile-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 12px;
+    border-radius: 20px;
+    font-size: 0.78rem;
+    font-weight: 600;
+    border: 1px solid transparent;
+}
+
+.residential-small-chip  { background: rgba(78,204,163,0.15);  border-color: #4ecca3; color: #4ecca3; }
+.residential-medium-chip { background: rgba(240,165,0,0.15);   border-color: #f0a500; color: #f0a500; }
+.residential-large-chip  { background: rgba(255,107,107,0.15); border-color: #ff6b6b; color: #ff6b6b; }
+.commercial-chip         { background: rgba(88,166,255,0.15);  border-color: #58a6ff; color: #58a6ff; }
